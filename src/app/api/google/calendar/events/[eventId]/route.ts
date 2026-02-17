@@ -9,7 +9,8 @@ import {
 /**
  * PUT /api/google/calendar/events/[eventId]
  * Update an existing calendar event.
- * Body: { summary?, description?, start?, end? }
+ * Body: { summary?, description?, start?, end?, timeZone? }
+ * start/end should be ISO datetime strings WITH offset.
  */
 export async function PUT(
     request: NextRequest,
@@ -23,15 +24,16 @@ export async function PUT(
 
     try {
         const body = await request.json();
+        const tz = body.timeZone || "UTC";
         const client = getOAuthClient({ access_token: auth.accessToken });
         const calendar = google.calendar({ version: "v3", auth: client });
 
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const requestBody: Record<string, unknown> = {};
         if (body.summary !== undefined) requestBody.summary = body.summary;
         if (body.description !== undefined) requestBody.description = body.description;
         if (body.start) requestBody.start = { dateTime: body.start, timeZone: tz };
         if (body.end) requestBody.end = { dateTime: body.end, timeZone: tz };
+        if (body.colorId !== undefined) requestBody.colorId = body.colorId;
 
         const { data } = await calendar.events.patch({
             calendarId: "primary",
@@ -46,6 +48,9 @@ export async function PUT(
                 description: data.description ?? "",
                 start: data.start?.dateTime ?? data.start?.date ?? "",
                 end: data.end?.dateTime ?? data.end?.date ?? "",
+                startTimeZone: data.start?.timeZone ?? tz,
+                endTimeZone: data.end?.timeZone ?? tz,
+                colorId: data.colorId ?? undefined,
             },
         });
         return applyRefreshedCookies(res, auth.newTokens);

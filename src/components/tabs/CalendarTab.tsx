@@ -1,49 +1,94 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     CalendarDays, Plus, Trash2, Edit3, ChevronLeft, ChevronRight,
-    LogIn, RefreshCw, Loader2,
+    LogIn, RefreshCw, Loader2, Pencil, MapPin, RotateCcw,
 } from "lucide-react";
 import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
+import {
+    type CalendarEvent,
+    isAllDayEvent,
+    getEventDateLocal,
+    formatEventTimeRange,
+    extractTimeHHMM,
+    buildDateTimeISO,
+    getBrowserTimeZone,
+} from "@/lib/calendarTime";
+import {
+    type GoogleColorMap,
+    getEventColorStyle,
+    getEventBarColor,
+    getEventDotColor,
+    getColorPickerOptions,
+} from "@/lib/calendarColors";
 
-interface GoogleEvent {
-    id: string;
-    summary: string;
-    description: string;
-    start: string;
-    end: string;
-}
+/* ── helpers ── */
+const fmtDateLabel = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+        day: "numeric", month: "short", year: "numeric",
+    });
 
-const COLORS = ["#7C5CFF", "#4ADE80", "#F87171", "#FBBF24", "#38BDF8", "#E879F9"];
+const fmtLongDate = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+        weekday: "long", month: "long", day: "numeric",
+    });
 
 export default function CalendarTab() {
     const { isConnected, connectWithPopup, checkConnection } = useGoogleAuthStore();
 
-    const [events, setEvents] = useState<GoogleEvent[]>([]);
+    const [events, setEvents] = useState<CalendarEvent[]>([]);
+    const [colorMap, setColorMap] = useState<GoogleColorMap | null>(null);
     const [year, setYear] = useState(new Date().getFullYear());
     const [month, setMonth] = useState(new Date().getMonth());
     const [selDate, setSelDate] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
-    const [editEvent, setEditEvent] = useState<GoogleEvent | null>(null);
+    const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+
+    // Form fields
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
     const [sTime, setSTime] = useState("09:00");
     const [eTime, setETime] = useState("10:00");
-    const [color, setColor] = useState(COLORS[0]);
+    const [selColorId, setSelColorId] = useState<string | undefined>(undefined);
+
+    // Edit-specific: original context + move-to date
+    const [origDate, setOrigDate] = useState<string | null>(null);
+    const [origSTime, setOrigSTime] = useState("");
+    const [origETime, setOrigETime] = useState("");
+    const [moveDate, setMoveDate] = useState<string>("");
+    const [calChangedHint, setCalChangedHint] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
     useEffect(() => { checkConnection(); }, [checkConnection]);
 
+    const fetchColors = useCallback(async () => {
+        try {
+            const res = await fetch("/api/google/calendar/colors");
+            if (!res.ok) return;
+            const data = await res.json();
+            setColorMap(data.event ?? null);
+        } catch { /* non-critical */ }
+    }, []);
+
     const fetchEvents = useCallback(async () => {
         if (!isConnected) return;
         setLoading(true);
         setError("");
         try {
-            const res = await fetch("/api/google/calendar/events");
+            const gridStart = new Date(year, month, 1);
+            gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+            const gridEnd = new Date(year, month + 1, 0);
+            gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()) + 1);
+            const params = new URLSearchParams({
+                timeMin: gridStart.toISOString(),
+                timeMax: gridEnd.toISOString(),
+            });
+            const res = await fetch(`/api/google/calendar/events?${params}`);
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             setEvents(data.events ?? []);
@@ -52,9 +97,11 @@ export default function CalendarTab() {
         } finally {
             setLoading(false);
         }
-    }, [isConnected]);
+    }, [isConnected, year, month]);
 
-    useEffect(() => { fetchEvents(); }, [fetchEvents]);
+    useEffect(() => {
+        if (isConnected) { fetchEvents(); fetchColors(); }
+    }, [isConnected, fetchEvents, fetchColors]);
 
     // Calendar math
     const daysIn = new Date(year, month + 1, 0).getDate();
@@ -66,40 +113,53 @@ export default function CalendarTab() {
     const prevM = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
     const nextM = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
 
-    const eventsForDate = (ds: string) =>
-        events.filter((e) => {
-            const eDate = e.start.slice(0, 10);
-            return eDate === ds;
-        });
-
+    const eventsForDate = (ds: string) => events.filter((ev) => getEventDateLocal(ev) === ds);
     const dayEvents = selDate ? eventsForDate(selDate) : [];
+    const colorOptions = getColorPickerOptions(colorMap);
+
+    // When editing: compute final save date (moveDate for edits, selDate for creates)
+    const isEditing = !!editEvent;
+    const saveDate = isEditing ? moveDate : selDate;
+
+    // Detect calendar selection change while editing
+    const handleDateSelect = useCallback((ds: string) => {
+        if (isEditing && showForm && ds !== moveDate) {
+            setCalChangedHint(true);
+        }
+        setSelDate(ds);
+    }, [isEditing, showForm, moveDate]);
 
     const reset = () => {
         setTitle(""); setDesc(""); setSTime("09:00"); setETime("10:00");
-        setColor(COLORS[0]); setEditEvent(null); setShowForm(false);
+        setSelColorId(undefined); setEditEvent(null); setShowForm(false);
+        setOrigDate(null); setOrigSTime(""); setOrigETime("");
+        setMoveDate(""); setCalChangedHint(false);
     };
 
     const handleSave = async () => {
-        if (!title.trim() || !selDate) return;
+        if (!title.trim() || !saveDate) return;
         setSaving(true);
         try {
-            const start = `${selDate}T${sTime}:00`;
-            const end = `${selDate}T${eTime}:00`;
+            const tz = getBrowserTimeZone();
+            const start = buildDateTimeISO(saveDate, sTime, tz);
+            const end = buildDateTimeISO(saveDate, eTime, tz);
+            const payload: Record<string, unknown> = {
+                summary: title.trim(), description: desc.trim(), start, end, timeZone: tz,
+            };
+            if (selColorId) payload.colorId = selColorId;
 
             if (editEvent) {
-                // Update
                 const res = await fetch(`/api/google/calendar/events/${editEvent.id}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ summary: title.trim(), description: desc.trim(), start, end }),
+                    body: JSON.stringify(payload),
                 });
                 if (!res.ok) throw new Error("Update failed");
             } else {
-                // Create
                 const res = await fetch("/api/google/calendar/events", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ summary: title.trim(), description: desc.trim(), start, end }),
+                    body: JSON.stringify(payload),
                 });
                 if (!res.ok) throw new Error("Create failed");
             }
@@ -122,18 +182,31 @@ export default function CalendarTab() {
         }
     };
 
-    const handleEdit = (ev: GoogleEvent) => {
+    const handleEdit = (ev: CalendarEvent) => {
+        const evDate = getEventDateLocal(ev);
+        const evSTime = extractTimeHHMM(ev.start, ev.startTimeZone);
+        const evETime = extractTimeHHMM(ev.end, ev.endTimeZone);
         setTitle(ev.summary);
         setDesc(ev.description);
-        const s = ev.start.length > 10 ? ev.start.slice(11, 16) : "09:00";
-        const e = ev.end.length > 10 ? ev.end.slice(11, 16) : "10:00";
-        setSTime(s);
-        setETime(e);
+        setSTime(evSTime);
+        setETime(evETime);
+        setSelColorId(ev.colorId);
+        setOrigDate(evDate);
+        setOrigSTime(evSTime);
+        setOrigETime(evETime);
+        setMoveDate(evDate);
+        setCalChangedHint(false);
         setEditEvent(ev);
         setShowForm(true);
     };
 
-    // ─── Not connected state ───
+    // Memoized preview label
+    const previewDateLabel = useMemo(() => {
+        if (!saveDate) return "";
+        return fmtDateLabel(saveDate);
+    }, [saveDate]);
+
+    // ─── Not connected ───
     if (!isConnected) {
         return (
             <div className="animate-fade-in">
@@ -154,7 +227,7 @@ export default function CalendarTab() {
         );
     }
 
-    // ─── Connected state ───
+    // ─── Connected ───
     return (
         <div className="animate-fade-in">
             <div className="flex items-center justify-between mb-6">
@@ -191,18 +264,23 @@ export default function CalendarTab() {
                         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
                         {Array.from({ length: daysIn }).map((_, i) => {
                             const day = i + 1; const ds = dateStr(day); const isT = ds === today; const isS = ds === selDate;
-                            const cnt = eventsForDate(ds).length;
+                            const dateEvents = eventsForDate(ds);
+                            const cnt = dateEvents.length;
                             return (
-                                <button key={day} onClick={() => setSelDate(ds)}
+                                <button key={day} onClick={() => handleDateSelect(ds)}
                                     className="relative h-10 rounded-lg text-sm transition-all hover:bg-white/[0.04] flex flex-col items-center justify-center"
                                     style={{
                                         background: isS ? "rgba(124,92,255,0.15)" : isT ? "rgba(124,92,255,0.06)" : "transparent",
                                         color: isS || isT ? "var(--color-accent)" : "var(--color-text-primary)", fontWeight: isT ? 600 : 400
                                     }}>
                                     {day}
-                                    {cnt > 0 && <div className="flex gap-0.5 mt-0.5">{Array.from({ length: Math.min(cnt, 3) }).map((_, j) => (
-                                        <div key={j} className="w-1 h-1 rounded-full" style={{ background: "var(--color-accent)" }} />
-                                    ))}</div>}
+                                    {cnt > 0 && (
+                                        <div className="flex gap-0.5 mt-0.5">
+                                            {dateEvents.slice(0, 3).map((ev, j) => (
+                                                <div key={j} className="w-1 h-1 rounded-full" style={{ background: getEventDotColor(ev.colorId, colorMap) }} />
+                                            ))}
+                                        </div>
+                                    )}
                                 </button>
                             );
                         })}
@@ -219,53 +297,197 @@ export default function CalendarTab() {
                     {selDate ? (<>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-                                {new Date(selDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                                {fmtLongDate(selDate)}
                             </h3>
                             <button onClick={() => { reset(); setShowForm(true); }} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--color-accent)" }}><Plus size={16} /></button>
                         </div>
 
-                        {/* Event form */}
+                        {/* ── Event form ── */}
                         <AnimatePresence>{showForm && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                                className="flex flex-col gap-2 mb-4 p-3 rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
-                                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title"
-                                    className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[color:var(--color-accent)]" style={{ color: "var(--color-text-primary)" }} />
-                                <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description"
-                                    className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-xs outline-none" style={{ color: "var(--color-text-primary)" }} />
-                                <div className="flex gap-2">
-                                    <input type="time" value={sTime} onChange={e => setSTime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
-                                    <input type="time" value={eTime} onChange={e => setETime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="flex flex-col gap-3 mb-4 overflow-hidden"
+                            >
+                                {/* ── Sticky Edit Context Banner ── */}
+                                {isEditing && origDate && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="rounded-2xl p-4 backdrop-blur-xl"
+                                        style={{
+                                            background: "linear-gradient(135deg, rgba(124,92,255,0.08), rgba(124,92,255,0.02))",
+                                            border: "1px solid rgba(124,92,255,0.25)",
+                                            boxShadow: "0 0 20px rgba(124,92,255,0.08)",
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Pencil size={14} style={{ color: "#7C5CFF" }} />
+                                            <span className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                                                Editing Event: <span style={{ color: "#7C5CFF" }}>{editEvent?.summary}</span>
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                                                📅 Original Date: <span style={{ color: "var(--color-text-primary)" }}>{fmtDateLabel(origDate)}</span>
+                                            </span>
+                                            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                                                ⏱️ Original Time: <span style={{ color: "var(--color-text-primary)" }}>{origSTime} – {origETime}</span>
+                                            </span>
+                                        </div>
+
+                                        {/* Calendar selection changed hint */}
+                                        {calChangedHint && selDate !== moveDate && (
+                                            <motion.p
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="text-xs italic mt-2"
+                                                style={{ color: "rgba(251,191,36,0.9)" }}
+                                            >
+                                                You selected {fmtDateLabel(selDate!)} on the calendar. Click &quot;Use Selected Date&quot; to move this event.
+                                            </motion.p>
+                                        )}
+                                    </motion.div>
+                                )}
+
+                                {/* ── Form fields ── */}
+                                <div className="flex flex-col gap-2 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)" }}>
+                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title"
+                                        className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[color:var(--color-accent)]" style={{ color: "var(--color-text-primary)" }} />
+                                    <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description"
+                                        className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-xs outline-none" style={{ color: "var(--color-text-primary)" }} />
+                                    <div className="flex gap-2">
+                                        <input type="time" value={sTime} onChange={e => setSTime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
+                                        <input type="time" value={eTime} onChange={e => setETime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
+                                    </div>
+                                    {/* Color picker */}
+                                    {colorOptions.length > 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-xs mr-1" style={{ color: "var(--color-text-muted)" }}>Color:</span>
+                                            <button onClick={() => setSelColorId(undefined)}
+                                                className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                                                style={{ background: "linear-gradient(135deg, #7C5CFF, #5B3FCC)", outline: selColorId === undefined ? "2px solid white" : "none", outlineOffset: 2 }}
+                                                title="Default" />
+                                            {colorOptions.map(opt => (
+                                                <button key={opt.id} onClick={() => setSelColorId(opt.id)}
+                                                    className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                                                    style={{ background: opt.background, outline: selColorId === opt.id ? "2px solid white" : "none", outlineOffset: 2 }}
+                                                    title={`Color ${opt.id}`} />
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex gap-1.5">{COLORS.map(c => (
-                                    <button key={c} onClick={() => setColor(c)} className="w-5 h-5 rounded-full" style={{ background: c, outline: color === c ? "2px solid white" : "none", outlineOffset: 2 }} />
-                                ))}</div>
+
+                                {/* ── Move Event To (edit only) ── */}
+                                {isEditing && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="rounded-xl p-3"
+                                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                                    >
+                                        <div className="mb-2">
+                                            <p className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>Move Event To</p>
+                                            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                                                Change the event&apos;s date explicitly. Won&apos;t change unless you confirm.
+                                            </p>
+                                        </div>
+
+                                        {/* Date input */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <CalendarDays size={14} style={{ color: "var(--color-text-muted)" }} />
+                                            <input
+                                                type="date"
+                                                value={moveDate}
+                                                onChange={e => { setMoveDate(e.target.value); setCalChangedHint(false); }}
+                                                className="flex-1 bg-transparent rounded-xl px-3 py-1.5 text-xs outline-none"
+                                                style={{
+                                                    color: "var(--color-text-primary)",
+                                                    colorScheme: "dark",
+                                                    background: "rgba(255,255,255,0.03)",
+                                                    border: "1px solid rgba(255,255,255,0.06)",
+                                                }}
+                                            />
+                                        </div>
+
+                                        {/* Action buttons */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => { if (selDate) { setMoveDate(selDate); setCalChangedHint(false); } }}
+                                                className="flex-1 text-xs px-3 py-1.5 rounded-xl font-medium transition-all hover:scale-[1.02]"
+                                                style={{
+                                                    background: "linear-gradient(135deg, rgba(124,92,255,0.25), rgba(124,92,255,0.15))",
+                                                    color: "#EDEBFF",
+                                                    border: "1px solid rgba(124,92,255,0.35)",
+                                                }}
+                                            >
+                                                Use Selected Date
+                                            </button>
+                                            <button
+                                                onClick={() => { if (origDate) { setMoveDate(origDate); setCalChangedHint(false); } }}
+                                                className="flex-1 text-xs px-3 py-1.5 rounded-xl font-medium transition-all hover:scale-[1.02] hover:border-[color:var(--color-accent)]"
+                                                style={{
+                                                    background: "transparent",
+                                                    color: "var(--color-text-secondary)",
+                                                    border: "1px solid rgba(255,255,255,0.1)",
+                                                }}
+                                            >
+                                                <RotateCcw size={10} className="inline mr-1" />
+                                                Reset to Original
+                                            </button>
+                                        </div>
+
+                                        {/* Preview row */}
+                                        <motion.div
+                                            key={saveDate}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="flex items-center gap-1.5 mt-2.5 pt-2"
+                                            style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+                                        >
+                                            <MapPin size={12} style={{ color: "#7C5CFF" }} />
+                                            <span className="text-xs" style={{ color: "rgba(124,92,255,0.85)" }}>
+                                                Event will be saved on: <span className="font-medium" style={{ color: "#7C5CFF" }}>{previewDateLabel}</span>
+                                            </span>
+                                        </motion.div>
+                                    </motion.div>
+                                )}
+
+                                {/* ── Save / Cancel ── */}
                                 <div className="flex gap-2">
-                                    <button onClick={handleSave} disabled={saving} className="btn-accent text-xs px-3 py-1 flex items-center gap-1">
+                                    <button onClick={handleSave} disabled={saving} className="btn-accent text-xs px-3 py-1.5 flex items-center gap-1">
                                         {saving && <Loader2 size={12} className="animate-spin" />}
                                         {editEvent ? "Update" : "Add"}
                                     </button>
-                                    <button onClick={reset} className="btn-ghost text-xs px-3 py-1">Cancel</button>
+                                    <button onClick={reset} className="btn-ghost text-xs px-3 py-1.5">Cancel</button>
                                 </div>
                             </motion.div>
                         )}</AnimatePresence>
 
-                        {/* Day events list */}
+                        {/* ── Day events list ── */}
                         <div className="flex flex-col gap-2">
                             {dayEvents.length === 0 && !showForm && <p className="text-xs text-center py-6" style={{ color: "var(--color-text-muted)" }}>No events</p>}
                             {dayEvents.map(ev => {
-                                const startTime = ev.start.length > 10 ? ev.start.slice(11, 16) : "all-day";
-                                const endTime = ev.end.length > 10 ? ev.end.slice(11, 16) : "";
+                                const timeLabel = formatEventTimeRange(ev);
+                                const colorStyle = getEventColorStyle(ev.colorId, colorMap);
+                                const barColor = getEventBarColor(ev.colorId, colorMap);
                                 return (
-                                    <div key={ev.id} className="flex items-start gap-2 p-3 rounded-xl group" style={{ background: "rgba(255,255,255,0.02)" }}>
-                                        <div className="w-1 h-8 rounded-full mt-0.5" style={{ background: COLORS[0] }} />
+                                    <div key={ev.id}
+                                        className="flex items-start gap-2 p-3 rounded-xl group transition-colors"
+                                        style={{ background: colorStyle.backgroundColor, border: `1px solid ${colorStyle.borderColor}` }}
+                                    >
+                                        <div className="w-1 h-8 rounded-full mt-0.5 flex-shrink-0" style={{ background: barColor }} />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{ev.summary}</p>
-                                            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{startTime}{endTime ? ` – ${endTime}` : ""}</p>
+                                            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{timeLabel}</p>
                                         </div>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleEdit(ev)} className="p-1 rounded hover:bg-white/5" style={{ color: "var(--color-text-muted)" }}><Edit3 size={12} /></button>
-                                            <button onClick={() => handleDelete(ev.id)} className="p-1 rounded hover:bg-white/5" style={{ color: "var(--color-danger)" }}><Trash2 size={12} /></button>
-                                        </div>
+                                        {!isAllDayEvent(ev) && (
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => handleEdit(ev)} className="p-1 rounded hover:bg-white/10" style={{ color: "var(--color-text-muted)" }}><Edit3 size={12} /></button>
+                                                <button onClick={() => handleDelete(ev.id)} className="p-1 rounded hover:bg-white/10" style={{ color: "var(--color-danger)" }}><Trash2 size={12} /></button>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

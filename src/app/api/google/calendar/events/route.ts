@@ -9,8 +9,9 @@ import {
 /**
  * GET /api/google/calendar/events
  * List calendar events for the next 30 days.
+ * Returns full timezone info for each event.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
     const auth = await getValidAccessTokenOrRefresh();
     if (!auth) {
         return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -20,18 +21,27 @@ export async function GET() {
         const client = getOAuthClient({ access_token: auth.accessToken });
         const calendar = google.calendar({ version: "v3", auth: client });
 
+        const url = new URL(request.url);
+        const paramMin = url.searchParams.get("timeMin");
+        const paramMax = url.searchParams.get("timeMax");
+
         const now = new Date();
         const future = new Date();
         future.setDate(future.getDate() + 30);
 
+        const timeMin = paramMin || now.toISOString();
+        const timeMax = paramMax || future.toISOString();
+
         const { data } = await calendar.events.list({
             calendarId: "primary",
-            timeMin: now.toISOString(),
-            timeMax: future.toISOString(),
+            timeMin,
+            timeMax,
             singleEvents: true,
             orderBy: "startTime",
-            maxResults: 100,
+            maxResults: 250,
         });
+
+        const calendarTz = data.timeZone ?? "UTC";
 
         const events = (data.items ?? []).map((e) => ({
             id: e.id,
@@ -39,7 +49,9 @@ export async function GET() {
             description: e.description ?? "",
             start: e.start?.dateTime ?? e.start?.date ?? "",
             end: e.end?.dateTime ?? e.end?.date ?? "",
-            htmlLink: e.htmlLink ?? "",
+            startTimeZone: e.start?.timeZone ?? calendarTz,
+            endTimeZone: e.end?.timeZone ?? calendarTz,
+            colorId: e.colorId ?? undefined,
         }));
 
         const res = NextResponse.json({ events });
@@ -53,8 +65,9 @@ export async function GET() {
 /**
  * POST /api/google/calendar/events
  * Create a new calendar event.
- * Body: { summary, description?, start, end }
- * start/end are ISO datetime strings.
+ * Body: { summary, description?, start, end, timeZone }
+ * start/end should be ISO datetime strings WITH offset.
+ * timeZone is the IANA timezone (e.g. "Asia/Kolkata").
  */
 export async function POST(request: NextRequest) {
     const auth = await getValidAccessTokenOrRefresh();
@@ -64,12 +77,13 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { summary, description, start, end } = body;
+        const { summary, description, start, end, timeZone, colorId } = body;
 
         if (!summary || !start || !end) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
+        const tz = timeZone || "UTC";
         const client = getOAuthClient({ access_token: auth.accessToken });
         const calendar = google.calendar({ version: "v3", auth: client });
 
@@ -78,8 +92,9 @@ export async function POST(request: NextRequest) {
             requestBody: {
                 summary,
                 description: description ?? "",
-                start: { dateTime: start, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-                end: { dateTime: end, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+                start: { dateTime: start, timeZone: tz },
+                end: { dateTime: end, timeZone: tz },
+                ...(colorId ? { colorId } : {}),
             },
         });
 
@@ -90,6 +105,9 @@ export async function POST(request: NextRequest) {
                 description: data.description ?? "",
                 start: data.start?.dateTime ?? data.start?.date ?? "",
                 end: data.end?.dateTime ?? data.end?.date ?? "",
+                startTimeZone: data.start?.timeZone ?? tz,
+                endTimeZone: data.end?.timeZone ?? tz,
+                colorId: data.colorId ?? undefined,
             },
         });
         return applyRefreshedCookies(res, auth.newTokens);
