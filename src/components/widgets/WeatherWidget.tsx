@@ -9,6 +9,7 @@ import {
     Search,
     Loader2,
 } from "lucide-react";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
 interface WeatherData {
     temperature: number;
@@ -41,7 +42,7 @@ const WMO_CODES: Record<number, string> = {
     99: "Thunderstorm w/ heavy hail",
 };
 
-export default function WeatherWidget() {
+export default function WeatherWidget({ instance }: { instance: WidgetInstance }) {
     const [city, setCity] = useState("");
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [cityName, setCityName] = useState("");

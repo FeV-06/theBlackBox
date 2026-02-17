@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TabId } from "@/types/widget";
 import Sidebar from "./Sidebar";
+import MobileNav from "./MobileNav";
 import Header from "./Header";
 import DashboardTab from "@/components/tabs/DashboardTab";
 import ProjectsTab from "@/components/tabs/ProjectsTab";
@@ -27,9 +28,10 @@ export default function DashboardShell() {
     return (
         <div className="flex min-h-screen">
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-            <div className="flex flex-col flex-1 ml-[72px]">
+            <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+            <div className="flex flex-col flex-1 ml-0 md:ml-[72px]">
                 <Header />
-                <main className="flex-1 overflow-auto p-6">
+                <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={activeTab}

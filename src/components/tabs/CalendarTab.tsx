@@ -232,7 +232,7 @@ export default function CalendarTab() {
         <div className="animate-fade-in">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>Calendar</h1>
+                    <h1 className="text-xl md:text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>Calendar</h1>
                     <p className="text-sm mt-1" style={{ color: "var(--color-text-secondary)" }}>Google Calendar — synced</p>
                 </div>
                 <button onClick={fetchEvents} disabled={loading} className="btn-ghost flex items-center gap-1.5 text-xs">
@@ -247,9 +247,9 @@ export default function CalendarTab() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                 {/* Month grid */}
-                <div className="lg:col-span-2 glass-card p-5">
+                <div className="lg:col-span-2 glass-card p-3 md:p-5">
                     <div className="flex items-center justify-between mb-4">
                         <button onClick={prevM} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--color-text-secondary)" }}><ChevronLeft size={18} /></button>
                         <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>{mName}</h3>
@@ -268,7 +268,7 @@ export default function CalendarTab() {
                             const cnt = dateEvents.length;
                             return (
                                 <button key={day} onClick={() => handleDateSelect(ds)}
-                                    className="relative h-10 rounded-lg text-sm transition-all hover:bg-white/[0.04] flex flex-col items-center justify-center"
+                                    className="relative h-8 md:h-10 rounded-lg text-xs md:text-sm transition-all hover:bg-white/[0.04] flex flex-col items-center justify-center"
                                     style={{
                                         background: isS ? "rgba(124,92,255,0.15)" : isT ? "rgba(124,92,255,0.06)" : "transparent",
                                         color: isS || isT ? "var(--color-accent)" : "var(--color-text-primary)", fontWeight: isT ? 600 : 400

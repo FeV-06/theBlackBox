@@ -1,5 +1,12 @@
 import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
+import type { WidgetInstance } from "./widgetInstance";
+
+/** Props that all widget components receive */
+export interface WidgetInstanceProps {
+    instance: WidgetInstance;
+}
+
 
 export type WidgetId =
     | "quote_clock"

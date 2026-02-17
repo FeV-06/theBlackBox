@@ -63,13 +63,13 @@ export default function FocusTab() {
 
     return (
         <div className="animate-fade-in max-w-4xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--color-text-primary)" }}>
+            <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6" style={{ color: "var(--color-text-primary)" }}>
                 Focus Mode
             </h1>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Timer section */}
-                <div className="glass-card p-6 flex flex-col items-center gap-6">
+                <div className="glass-card p-4 md:p-6 flex flex-col items-center gap-4 md:gap-6">
                     {/* Mode toggle */}
                     <div className="flex gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
                         <button
@@ -113,14 +113,14 @@ export default function FocusTab() {
                     {/* Timer display */}
                     <div className="relative">
                         <div
-                            className="w-48 h-48 rounded-full flex items-center justify-center"
+                            className="w-40 h-40 md:w-48 md:h-48 rounded-full flex items-center justify-center"
                             style={{
                                 background: "rgba(124,92,255,0.06)",
                                 border: "2px solid rgba(124,92,255,0.2)",
                                 boxShadow: isRunning ? "0 0 40px rgba(124,92,255,0.15)" : "none",
                             }}
                         >
-                            <span className="text-4xl font-mono font-bold" style={{ color: "var(--color-text-primary)" }}>
+                            <span className="text-3xl md:text-4xl font-mono font-bold" style={{ color: "var(--color-text-primary)" }}>
                                 {mode === "pomodoro" && isRunning ? formatTime(displayTime) : formatTime(elapsed)}
                             </span>
                         </div>
@@ -194,7 +194,7 @@ export default function FocusTab() {
                 </div>
 
                 {/* Activity chart */}
-                <div className="glass-card p-6">
+                <div className="glass-card p-4 md:p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
                             Weekly Activity

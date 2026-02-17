@@ -4,8 +4,9 @@ import { useState } from "react";
 import { ExternalLink, Plus, Trash2, Link2 } from "lucide-react";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { motion, AnimatePresence } from "framer-motion";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
-export default function QuickLinksWidget() {
+export default function QuickLinksWidget({ instance }: { instance: WidgetInstance }) {
     const { bookmarks, addBookmark, deleteBookmark } = useSettingsStore();
     const [showAdd, setShowAdd] = useState(false);
     const [title, setTitle] = useState("");

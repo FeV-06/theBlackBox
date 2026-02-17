@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { Puzzle, Plus, Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import type { ApiWidgetInstance } from "@/types/widget";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
 const TEMPLATES = [
     { name: "GitHub Repo Stats", template: "github", url: "https://api.github.com/repos/{owner}/{repo}" },
@@ -14,7 +15,7 @@ const TEMPLATES = [
     { name: "Weather (Open-Meteo)", template: "weather", url: "https://api.open-meteo.com/v1/forecast?latitude=28.6&longitude=77.2&current_weather=true" },
 ];
 
-function ApiWidgetInstance({ instance }: { instance: ApiWidgetInstance }) {
+function ApiWidgetCard({ instance }: { instance: ApiWidgetInstance }) {
     const [data, setData] = useState<unknown>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -90,7 +91,7 @@ function ApiWidgetInstance({ instance }: { instance: ApiWidgetInstance }) {
     );
 }
 
-export default function CustomApiWidget() {
+export default function CustomApiWidget({ instance }: { instance: WidgetInstance }) {
     const { apiWidgets, addApiWidget } = useSettingsStore();
     const [showAdd, setShowAdd] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(0);
@@ -116,7 +117,7 @@ export default function CustomApiWidget() {
         <div className="flex flex-col gap-3">
             {/* Existing instances */}
             {apiWidgets.map((w) => (
-                <ApiWidgetInstance key={w.id} instance={w} />
+                <ApiWidgetCard key={w.id} instance={w} />
             ))}
 
             {apiWidgets.length === 0 && !showAdd && (

@@ -3,8 +3,9 @@
 import { useFocusStore } from "@/store/useFocusStore";
 import { getWeekDays, getDayLabel, formatTime } from "@/lib/utils";
 import { Timer } from "lucide-react";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
-export default function FocusSummaryWidget() {
+export default function FocusSummaryWidget({ instance }: { instance: WidgetInstance }) {
     const sessions = useFocusStore((s) => s.sessions);
     const weekDays = getWeekDays();
 

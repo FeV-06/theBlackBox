@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
 import {
     Download, Upload, ToggleLeft, ToggleRight, Palette, Puzzle, Trash2,
-    LogIn, LogOut, User, Loader2,
+    LogIn, LogOut, User, Loader2, Plus, Copy,
 } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
-import { WIDGET_DEFS } from "@/components/widgets/WidgetGrid";
+import { WIDGET_REGISTRY } from "@/components/widgets/WidgetGrid";
 import type { QuoteVibe } from "@/types/widget";
+import type { WidgetType } from "@/types/widgetInstance";
 
 const VIBES: { value: QuoteVibe; label: string }[] = [
     { value: "motivational", label: "💪 Motivational" },
@@ -20,12 +20,13 @@ const VIBES: { value: QuoteVibe; label: string }[] = [
 ];
 
 export default function SettingsTab() {
-    const { enabled, toggle, reset: resetWidgets } = useWidgetStore();
+    const { instances, layout, toggleInstance, removeInstance, addInstance, duplicateInstance, resetToDefaults } = useWidgetStore();
     const { quoteVibe, setQuoteVibe, apiWidgets, deleteApiWidget } = useSettingsStore();
     const { isConnected, profile, loading, connectWithPopup, disconnect, checkConnection } = useGoogleAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState("");
     const [disconnecting, setDisconnecting] = useState(false);
+    const [selectedType, setSelectedType] = useState<WidgetType>("todo");
 
     useEffect(() => { checkConnection(); }, [checkConnection]);
 
@@ -64,6 +65,13 @@ export default function SettingsTab() {
         await disconnect();
         setDisconnecting(false);
     };
+
+    const handleAddWidget = () => {
+        addInstance(selectedType);
+    };
+
+    // Build a map for registry lookup
+    const registryMap = new Map(WIDGET_REGISTRY.map((d) => [d.type, d]));
 
     return (
         <div className="animate-fade-in max-w-3xl mx-auto">
@@ -130,27 +138,63 @@ export default function SettingsTab() {
                     {importStatus && <p className="text-xs mt-2" style={{ color: importStatus.startsWith("✓") ? "var(--color-success)" : "var(--color-danger)" }}>{importStatus}</p>}
                 </div>
 
-                {/* Widget toggles */}
+                {/* Widget Manager */}
                 <div className="glass-card p-5">
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
-                        <ToggleRight size={16} /> Widget Visibility
+                        <Puzzle size={16} /> Widget Manager
                     </h3>
+
+                    {/* Add widget */}
+                    <div className="flex gap-2 mb-4">
+                        <select
+                            value={selectedType}
+                            onChange={(e) => setSelectedType(e.target.value as WidgetType)}
+                            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-xs outline-none focus:border-[color:var(--color-accent)]"
+                            style={{ color: "var(--color-text-primary)", background: "rgba(255,255,255,0.03)" }}
+                        >
+                            {WIDGET_REGISTRY.map((def) => (
+                                <option key={def.type} value={def.type} style={{ background: "#14141a", color: "#e8e8f0" }}>
+                                    {def.defaultTitle} {def.allowMultiple ? "" : "(single)"}
+                                </option>
+                            ))}
+                        </select>
+                        <button onClick={handleAddWidget} className="btn-accent px-3 py-2 flex items-center gap-1.5">
+                            <Plus size={14} /> Add
+                        </button>
+                    </div>
+
+                    {/* Instance list */}
                     <div className="flex flex-col gap-2">
-                        {WIDGET_DEFS.map((w) => {
-                            const on = enabled[w.id];
-                            const Icon = w.icon;
+                        {layout.map((id) => {
+                            const inst = instances[id];
+                            if (!inst) return null;
+                            const def = registryMap.get(inst.type);
+                            const Icon = def?.icon ?? Puzzle;
+                            const title = inst.title ?? def?.defaultTitle ?? inst.type;
                             return (
-                                <button key={w.id} onClick={() => toggle(w.id)}
-                                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/[0.02]"
-                                    style={{ background: "rgba(255,255,255,0.01)" }}>
-                                    <Icon size={16} style={{ color: on ? "var(--color-accent)" : "var(--color-text-muted)" }} />
-                                    <span className="flex-1 text-left text-sm" style={{ color: on ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>{w.title}</span>
-                                    {on ? <ToggleRight size={20} style={{ color: "var(--color-accent)" }} /> : <ToggleLeft size={20} style={{ color: "var(--color-text-muted)" }} />}
-                                </button>
+                                <div key={id} className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/[0.02]" style={{ background: "rgba(255,255,255,0.01)" }}>
+                                    <Icon size={16} style={{ color: inst.enabled ? "var(--color-accent)" : "var(--color-text-muted)" }} />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-sm block truncate" style={{ color: inst.enabled ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>{title}</span>
+                                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>{inst.type}</span>
+                                    </div>
+                                    <button onClick={() => toggleInstance(id)} className="p-1" title={inst.enabled ? "Disable" : "Enable"}>
+                                        {inst.enabled
+                                            ? <ToggleRight size={20} style={{ color: "var(--color-accent)" }} />
+                                            : <ToggleLeft size={20} style={{ color: "var(--color-text-muted)" }} />
+                                        }
+                                    </button>
+                                    <button onClick={() => duplicateInstance(id)} className="p-1 rounded hover:bg-white/5 transition-colors" style={{ color: "var(--color-text-muted)" }} title="Duplicate">
+                                        <Copy size={13} />
+                                    </button>
+                                    <button onClick={() => removeInstance(id)} className="p-1 rounded hover:bg-white/5 transition-colors" style={{ color: "var(--color-danger)" }} title="Delete">
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
                             );
                         })}
                     </div>
-                    <button onClick={resetWidgets} className="btn-ghost text-xs mt-3">Reset to defaults</button>
+                    <button onClick={resetToDefaults} className="btn-ghost text-xs mt-3">Reset to defaults</button>
                 </div>
 
                 {/* Quote vibe */}

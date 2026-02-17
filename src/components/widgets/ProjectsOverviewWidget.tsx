@@ -3,12 +3,14 @@
 import { useProjectStore } from "@/store/useProjectStore";
 import { FolderKanban, ArrowRight } from "lucide-react";
 import type { TabId } from "@/types/widget";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
 interface ProjectsOverviewWidgetProps {
+    instance: WidgetInstance;
     onNavigate?: (tab: TabId) => void;
 }
 
-export default function ProjectsOverviewWidget({ onNavigate }: ProjectsOverviewWidgetProps) {
+export default function ProjectsOverviewWidget({ instance, onNavigate }: ProjectsOverviewWidgetProps) {
     const projects = useProjectStore((s) => s.projects);
     const topProjects = projects.slice(0, 3);
 

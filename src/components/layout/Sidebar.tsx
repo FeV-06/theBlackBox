@@ -26,7 +26,7 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     return (
-        <aside className="fixed left-0 top-0 bottom-0 w-[72px] flex flex-col items-center py-6 z-50"
+        <aside className="fixed left-0 top-0 bottom-0 w-[72px] hidden md:flex flex-col items-center py-6 z-50"
             style={{
                 background: "linear-gradient(180deg, rgba(11,11,14,0.95) 0%, rgba(20,20,25,0.98) 100%)",
                 borderRight: "1px solid rgba(255,255,255,0.06)",

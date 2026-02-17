@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Github, Star, GitFork, AlertCircle, GitCommit, RefreshCw } from "lucide-react";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
 interface RepoData {
     full_name: string;
@@ -16,7 +17,7 @@ interface CommitData {
     commit: { message: string; author: { date: string } };
 }
 
-export default function GitHubWidget() {
+export default function GitHubWidget({ instance }: { instance: WidgetInstance }) {
     const [owner, setOwner] = useState("");
     const [repo, setRepo] = useState("");
     const [repoData, setRepoData] = useState<RepoData | null>(null);

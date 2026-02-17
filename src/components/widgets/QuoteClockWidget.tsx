@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Clock, Quote } from "lucide-react";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { fetchQuote } from "@/lib/utils";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
-export default function QuoteClockWidget() {
+export default function QuoteClockWidget({ instance }: { instance: WidgetInstance }) {
     const [time, setTime] = useState("");
     const [date, setDate] = useState("");
     const [quote, setQuote] = useState("");

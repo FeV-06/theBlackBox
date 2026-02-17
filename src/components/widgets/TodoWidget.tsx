@@ -4,8 +4,9 @@ import { useState } from "react";
 import { CheckSquare, Plus, Trash2 } from "lucide-react";
 import { useTodoStore } from "@/store/useTodoStore";
 import { motion, AnimatePresence } from "framer-motion";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
-export default function TodoWidget() {
+export default function TodoWidget({ instance }: { instance: WidgetInstance }) {
     const { todos, addTodo, toggleTodo, deleteTodo } = useTodoStore();
     const [input, setInput] = useState("");
 

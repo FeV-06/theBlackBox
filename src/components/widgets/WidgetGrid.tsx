@@ -17,7 +17,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import WidgetCard from "./WidgetCard";
-import type { WidgetDefinition, WidgetId, TabId } from "@/types/widget";
+import type { WidgetTypeDefinition, WidgetInstance } from "@/types/widgetInstance";
+import type { TabId } from "@/types/widget";
 
 // Widget imports
 import QuoteClockWidget from "./QuoteClockWidget";
@@ -42,30 +43,48 @@ import {
     FolderKanban,
     Puzzle,
     Mail,
+    AlertTriangle,
 } from "lucide-react";
 
-const WIDGET_DEFS: WidgetDefinition[] = [
-    { id: "quote_clock", title: "Quote & Clock", icon: Clock, component: QuoteClockWidget, defaultEnabled: true },
-    { id: "todo", title: "To-Do List", icon: CheckSquare, component: TodoWidget, defaultEnabled: true },
-    { id: "habits", title: "Habit Tracker", icon: Flame, component: HabitTrackerWidget, defaultEnabled: true },
-    { id: "github", title: "GitHub", icon: Github, component: GitHubWidget, defaultEnabled: true },
-    { id: "weather", title: "Weather", icon: CloudSun, component: WeatherWidget, defaultEnabled: true },
-    { id: "links", title: "Quick Links", icon: Link2, component: QuickLinksWidget, defaultEnabled: true },
-    { id: "focus_summary", title: "Focus Summary", icon: Timer, component: FocusSummaryWidget, defaultEnabled: true },
-    { id: "projects_overview", title: "Projects", icon: FolderKanban, component: ProjectsOverviewWidget, defaultEnabled: true },
-    { id: "custom_api", title: "Custom API", icon: Puzzle, component: CustomApiWidget, defaultEnabled: true },
-    { id: "gmail", title: "Gmail", icon: Mail, component: GmailWidget, defaultEnabled: true },
+/* ─── Widget Type Registry ─── */
+
+export const WIDGET_REGISTRY: WidgetTypeDefinition[] = [
+    { type: "quote_clock", defaultTitle: "Quote & Clock", icon: Clock, component: QuoteClockWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "todo", defaultTitle: "To-Do List", icon: CheckSquare, component: TodoWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "habit_tracker", defaultTitle: "Habit Tracker", icon: Flame, component: HabitTrackerWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "github", defaultTitle: "GitHub", icon: Github, component: GitHubWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "weather", defaultTitle: "Weather", icon: CloudSun, component: WeatherWidget, allowMultiple: true, defaultConfig: {} },
+    { type: "quick_links", defaultTitle: "Quick Links", icon: Link2, component: QuickLinksWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "focus_summary", defaultTitle: "Focus Summary", icon: Timer, component: FocusSummaryWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "projects_overview", defaultTitle: "Projects", icon: FolderKanban, component: ProjectsOverviewWidget, allowMultiple: false, defaultConfig: {} },
+    { type: "custom_api", defaultTitle: "Custom API", icon: Puzzle, component: CustomApiWidget, allowMultiple: true, defaultConfig: {} },
+    { type: "gmail", defaultTitle: "Gmail", icon: Mail, component: GmailWidget, allowMultiple: true, defaultConfig: { mode: "basic", mailbox: "inbox", status: "all", category: "all", query: "" } },
 ];
 
-const widgetMap = new Map(WIDGET_DEFS.map((w) => [w.id, w]));
+const registryMap = new Map(WIDGET_REGISTRY.map((d) => [d.type, d]));
+
+/* ─── Fallback widget for unknown types ─── */
+
+function UnknownWidget({ instance }: { instance: WidgetInstance }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-6 gap-2">
+            <AlertTriangle size={24} style={{ color: "var(--color-danger)" }} />
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                Unknown widget type: <code>{instance.type}</code>
+            </p>
+        </div>
+    );
+}
+
+/* ─── Sortable wrapper ─── */
 
 interface SortableWidgetProps {
-    def: WidgetDefinition;
-    onRemove: () => void;
+    instance: WidgetInstance;
+    definition: WidgetTypeDefinition;
     onNavigate?: (tab: TabId) => void;
 }
 
-function SortableWidget({ def, onRemove, onNavigate }: SortableWidgetProps) {
+function SortableWidget({ instance, definition, onNavigate }: SortableWidgetProps) {
     const {
         attributes,
         listeners,
@@ -73,7 +92,7 @@ function SortableWidget({ def, onRemove, onNavigate }: SortableWidgetProps) {
         transform,
         transition,
         isDragging,
-    } = useSortable({ id: def.id });
+    } = useSortable({ id: instance.instanceId });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -82,32 +101,33 @@ function SortableWidget({ def, onRemove, onNavigate }: SortableWidgetProps) {
         zIndex: isDragging ? 50 : "auto" as const,
     };
 
-    const Component = def.component;
+    const Component = definition.component;
 
     return (
         <div ref={setNodeRef} style={style}>
             <WidgetCard
-                title={def.title}
-                icon={def.icon}
-                onRemove={onRemove}
+                instance={instance}
+                definition={definition}
                 dragHandleProps={{ ...attributes, ...listeners }}
             >
-                {def.id === "projects_overview" ? (
-                    <ProjectsOverviewWidget onNavigate={onNavigate} />
+                {instance.type === "projects_overview" ? (
+                    <ProjectsOverviewWidget instance={instance} onNavigate={onNavigate} />
                 ) : (
-                    <Component />
+                    <Component instance={instance} />
                 )}
             </WidgetCard>
         </div>
     );
 }
 
+/* ─── Grid ─── */
+
 interface WidgetGridProps {
     onNavigate?: (tab: TabId) => void;
 }
 
 export default function WidgetGrid({ onNavigate }: WidgetGridProps) {
-    const { order, enabled, reorder, setEnabled } = useWidgetStore();
+    const { instances, layout, reorder } = useWidgetStore();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -118,46 +138,43 @@ export default function WidgetGrid({ onNavigate }: WidgetGridProps) {
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
     );
 
-    const visibleWidgets = useMemo(
-        () => order.filter((id) => enabled[id] && widgetMap.has(id)),
-        [order, enabled]
-    );
+    const visibleItems = useMemo(() => {
+        const result: { instance: WidgetInstance; definition: WidgetTypeDefinition }[] = [];
+        for (const id of layout) {
+            const inst = instances[id];
+            if (!inst || !inst.enabled) continue;
+            const def = registryMap.get(inst.type);
+            if (!def) {
+                console.warn(`[WidgetGrid] Widget type "${inst.type}" (instance "${id}") has no registered definition. Skipping.`);
+                continue;
+            }
+            result.push({ instance: inst, definition: def });
+        }
+        return result;
+    }, [layout, instances]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-
-        const oldIndex = order.indexOf(active.id as WidgetId);
-        const newIndex = order.indexOf(over.id as WidgetId);
-        if (oldIndex === -1 || newIndex === -1) return;
-
-        const newOrder = [...order];
-        newOrder.splice(oldIndex, 1);
-        newOrder.splice(newIndex, 0, active.id as WidgetId);
-        reorder(newOrder);
+        reorder(active.id as string, over.id as string);
     };
 
     if (!mounted) return null;
 
     return (
         <DndContext id="tbb-widget-grid" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={visibleWidgets} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {visibleWidgets.map((id) => {
-                        const def = widgetMap.get(id)!;
-                        return (
-                            <SortableWidget
-                                key={id}
-                                def={def}
-                                onRemove={() => setEnabled(id, false)}
-                                onNavigate={onNavigate}
-                            />
-                        );
-                    })}
+            <SortableContext items={visibleItems.map((v) => v.instance.instanceId)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
+                    {visibleItems.map(({ instance, definition }) => (
+                        <SortableWidget
+                            key={instance.instanceId}
+                            instance={instance}
+                            definition={definition}
+                            onNavigate={onNavigate}
+                        />
+                    ))}
                 </div>
             </SortableContext>
         </DndContext>
     );
 }
-
-export { WIDGET_DEFS };

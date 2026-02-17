@@ -5,8 +5,9 @@ import { Flame, Plus, Trash2, Check } from "lucide-react";
 import { useHabitStore } from "@/store/useHabitStore";
 import { getTodayStr } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import type { WidgetInstance } from "@/types/widgetInstance";
 
-export default function HabitTrackerWidget() {
+export default function HabitTrackerWidget({ instance }: { instance: WidgetInstance }) {
     const { habits, addHabit, deleteHabit, toggleToday, getStreak } = useHabitStore();
     const [input, setInput] = useState("");
     const today = getTodayStr();
