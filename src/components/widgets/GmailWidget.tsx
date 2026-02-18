@@ -10,6 +10,7 @@ import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import type { WidgetInstance } from "@/types/widgetInstance";
+import { SkeletonEmailRow } from "@/components/ui/Skeleton";
 import type {
     GmailMailbox,
     GmailStatus,
@@ -345,6 +346,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                 params.set("category", cfg.category);
             }
             if (pageToken) params.set("pageToken", pageToken);
+            params.set("maxResults", "7");
 
             const res = await fetch(`/api/google/gmail/summary?${params}`);
             if (res.status === 401) { setError("Session expired. Reconnect Google."); return; }
@@ -430,8 +432,10 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
     /* ── Loading first page ── */
     if (loading && messages.length === 0 && !error) {
         return (
-            <div className="flex items-center justify-center py-8">
-                <RefreshCw size={18} className="animate-spin" style={{ color: "var(--color-accent)" }} />
+            <div className="flex flex-col gap-0.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonEmailRow key={i} />
+                ))}
             </div>
         );
     }
@@ -470,7 +474,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
     );
 
     return (
-        <div className="flex flex-col gap-2 relative" style={{ minHeight: 0 }}>
+        <div className="flex flex-col h-full gap-3 relative overflow-hidden">
             {/* Modals */}
             <AnimatePresence>
                 {showAddPreset && (
@@ -486,7 +490,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
             </AnimatePresence>
 
             {/* ═══════ HEADER ═══════ */}
-            <div className="flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(124,92,255,0.12)" }}>
                         <Mail size={14} style={{ color: "var(--color-accent)" }} />
@@ -496,44 +500,47 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                         <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>unread</span>
                     </div>
                 </div>
-                <button
-                    onClick={() => fetchPage()}
-                    disabled={loading}
-                    className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                    style={{ color: "var(--color-text-muted)" }}
-                >
-                    <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => fetchPage()}
+                        disabled={loading}
+                        className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                        style={{ color: "var(--color-text-muted)" }}
+                    >
+                        <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                    </button>
+                    {paginationControls}
+                </div>
             </div>
 
             {/* ═══════ MODE TOGGLE ═══════ */}
-            <div className="flex rounded-lg overflow-hidden flex-shrink-0" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex rounded-lg overflow-hidden shrink-0" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
                 <button
                     onClick={() => setConfig({ mode: "basic" })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-medium transition-all"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all"
                     style={{
-                        background: cfg.mode === "basic" ? "rgba(124,92,255,0.15)" : "rgba(255,255,255,0.02)",
-                        color: cfg.mode === "basic" ? "var(--color-accent)" : "var(--color-text-muted)",
+                        background: cfg.mode === "basic" ? "rgba(124,92,255,0.12)" : "transparent",
+                        color: cfg.mode === "basic" ? "var(--color-accent)" : "rgba(255,255,255,0.3)",
                     }}
                 >
-                    <Mail size={11} /> Filters
+                    Filters
                 </button>
                 <button
                     onClick={() => setConfig({ mode: "advanced" })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-medium transition-all"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-all"
                     style={{
-                        background: cfg.mode === "advanced" ? "rgba(124,92,255,0.15)" : "rgba(255,255,255,0.02)",
-                        color: cfg.mode === "advanced" ? "var(--color-accent)" : "var(--color-text-muted)",
+                        background: cfg.mode === "advanced" ? "rgba(124,92,255,0.12)" : "transparent",
+                        color: cfg.mode === "advanced" ? "var(--color-accent)" : "rgba(255,255,255,0.3)",
                         borderLeft: "1px solid rgba(255,255,255,0.06)",
                     }}
                 >
-                    <Search size={11} /> Query
+                    Query
                 </button>
             </div>
 
             {/* ═══════ BASIC FILTERS ═══════ */}
             {cfg.mode === "basic" && (
-                <div className="flex flex-wrap gap-1.5 flex-shrink-0">
+                <div className="flex flex-wrap gap-1.5 shrink-0">
                     <select value={cfg.mailbox} onChange={(e) => setConfig({ mailbox: e.target.value })} className={selectClass} style={selectStyle}>
                         <option value="inbox" style={optStyle}>Inbox</option>
                         <option value="sent" style={optStyle}>Sent</option>
@@ -545,7 +552,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                         <option value="all" style={optStyle}>All Mail</option>
                     </select>
                     <select value={cfg.status} onChange={(e) => setConfig({ status: e.target.value })} className={selectClass} style={selectStyle}>
-                        <option value="all" style={optStyle}>All</option>
+                        <option value="all" style={optStyle}>All Status</option>
                         <option value="unread" style={optStyle}>Unread</option>
                         <option value="read" style={optStyle}>Read</option>
                     </select>
@@ -557,14 +564,12 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                         <option value="updates" style={optStyle}>Updates</option>
                         <option value="forums" style={optStyle}>Forums</option>
                     </select>
-                    {paginationControls}
                 </div>
             )}
 
             {/* ═══════ ADVANCED QUERY ═══════ */}
             {cfg.mode === "advanced" && (
-                <div className="flex flex-col gap-2 flex-shrink-0">
-                    {/* Query input row */}
+                <div className="flex flex-col gap-2 shrink-0">
                     <div className="flex gap-1.5">
                         <input
                             ref={queryInputRef}
@@ -573,98 +578,56 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                             onChange={(e) => setLocalQuery(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") applyAdvancedQuery(); }}
                             placeholder="from:github newer_than:7d"
-                            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs outline-none focus:border-[color:var(--color-accent)] transition-colors"
+                            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-[color:var(--color-accent)] transition-colors"
                             style={{ color: "var(--color-text-primary)" }}
                         />
                         <button
                             onClick={applyAdvancedQuery}
-                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-all hover:opacity-90"
-                            style={{ background: "rgba(124,92,255,0.2)", color: "var(--color-accent)" }}
+                            className="p-1.5 rounded-lg transition-all hover:bg-white/[0.04]"
+                            style={{ color: "var(--color-accent)", border: "1px solid rgba(124,92,255,0.2)" }}
                         >
-                            <Zap size={11} />
-                        </button>
-                        {/* Save current query as preset */}
-                        <button
-                            onClick={() => setShowAddPreset(true)}
-                            className="px-2 py-1.5 rounded-lg text-[11px] transition-all hover:bg-white/[0.04]"
-                            style={{ color: "var(--color-text-muted)", border: "1px solid rgba(255,255,255,0.06)" }}
-                            title="Save as preset"
-                        >
-                            <Bookmark size={12} />
+                            <Zap size={14} />
                         </button>
                     </div>
 
-                    {/* Preset dropdown row */}
                     <div className="flex items-center gap-1.5">
-                        <select
-                            value={activePresetId ?? ""}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                if (val) {
-                                    const preset = gmailPresets.find(p => p.id === val);
-                                    if (preset) {
-                                        setConfig({ mode: "advanced", query: preset.query });
-                                        setLocalQuery(preset.query);
-                                    }
-                                }
-                            }}
-                            className={selectClass + " flex-1 min-w-0"}
-                            style={activePresetId ? { color: "var(--color-accent)", background: "rgba(124,92,255,0.08)", borderColor: "rgba(124,92,255,0.25)" } : selectStyle}
-                        >
-                            <option value="" disabled style={optStyle}>Select a preset…</option>
+                        <div className="flex-1 overflow-x-auto whitespace-nowrap no-scrollbar flex items-center gap-1.5 py-0.5">
+                            <button
+                                onClick={() => setShowAddPreset(true)}
+                                className="flex-shrink-0 p-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-white/30 hover:text-white/60 transition-colors"
+                            >
+                                <Plus size={12} />
+                            </button>
                             {gmailPresets.map((p) => (
-                                <option key={p.id} value={p.id} style={optStyle}>{p.name}</option>
+                                <button
+                                    key={p.id}
+                                    onClick={() => {
+                                        setConfig({ mode: "advanced", query: p.query });
+                                        setLocalQuery(p.query);
+                                    }}
+                                    className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${activePresetId === p.id
+                                            ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+                                            : "bg-white/[0.03] border-white/5 text-white/30 hover:text-white/60"
+                                        }`}
+                                >
+                                    {p.name}
+                                </button>
                             ))}
-                        </select>
-                        <button
-                            onClick={() => setShowAddPreset(true)}
-                            className="p-1 rounded-md transition-all hover:bg-white/[0.04]"
-                            style={{ color: "var(--color-text-muted)", border: "1px solid rgba(255,255,255,0.06)" }}
-                            title="Add preset"
-                        >
-                            <Plus size={12} />
-                        </button>
+                        </div>
                         <button
                             onClick={() => setShowManagePresets(true)}
-                            className="p-1 rounded-md transition-all hover:bg-white/[0.04]"
-                            style={{ color: "var(--color-text-muted)", border: "1px solid rgba(255,255,255,0.06)" }}
-                            title="Manage presets"
+                            className="p-1.5 rounded-lg border border-white/5 text-white/30 hover:text-white/60 transition-colors"
                         >
                             <Pencil size={12} />
                         </button>
                     </div>
-
-                    {/* Keywords dropdown + pagination */}
-                    <div className="flex items-center gap-1.5">
-                        <select
-                            value=""
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                if (val) { insertChip(val); e.target.value = ""; }
-                            }}
-                            className={selectClass}
-                            style={selectStyle}
-                        >
-                            <option value="" disabled style={optStyle}>Insert keyword…</option>
-                            {QUERY_CHIPS.map((chip) => (
-                                <option key={chip} value={chip} style={optStyle}>{chip}</option>
-                            ))}
-                        </select>
-                        {paginationControls}
-                    </div>
                 </div>
             )}
 
-            {/* ═══════ SCROLL-LOCKED MESSAGE LIST ═══════ */}
+            {/* ═══════ MESSAGE LIST ═══════ */}
             <div
                 ref={scrollRef}
-                className="flex flex-col gap-0.5 overflow-y-auto flex-1"
-                style={{
-                    maxHeight: "300px",
-                    minHeight: "80px",
-                    scrollbarWidth: "thin",
-                    scrollbarColor: "rgba(124,92,255,0.25) transparent",
-                }}
+                className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-1"
             >
                 {messages.map((msg, i) => (
                     <motion.a
@@ -672,45 +635,38 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                         href={gmailLink(msg.id)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
-                        className="flex items-start gap-2 px-3 py-2 rounded-lg group transition-all hover:bg-white/[0.03]"
-                        style={{ border: "1px solid transparent", flexShrink: 0 }}
-                        onMouseEnter={(e) => {
-                            const el = e.currentTarget as HTMLElement;
-                            el.style.borderColor = "rgba(124,92,255,0.2)";
-                            el.style.boxShadow = "0 0 8px rgba(124,92,255,0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                            const el = e.currentTarget as HTMLElement;
-                            el.style.borderColor = "transparent";
-                            el.style.boxShadow = "none";
-                        }}
+                        className="flex flex-col gap-1 p-3 rounded-xl transition-all hover:bg-white/[0.03] border border-transparent hover:border-white/[0.04]"
                     >
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{msg.subject}</p>
-                            <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--color-text-muted)" }}>{cleanFrom(msg.from)}</p>
-                            {msg.snippet && (
-                                <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--color-text-muted)", opacity: 0.6 }}>{msg.snippet}</p>
-                            )}
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-30 truncate">
+                                {cleanFrom(msg.from)}
+                            </span>
+                            <span className="text-[10px] opacity-20 whitespace-nowrap">{formatEmailDate(msg.date)}</span>
                         </div>
-                        <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
-                            <span className="text-[10px] whitespace-nowrap" style={{ color: "var(--color-text-muted)" }}>{formatEmailDate(msg.date)}</span>
-                            <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--color-text-muted)" }} />
-                        </div>
+                        <p className="text-xs font-medium leading-relaxed line-clamp-1" style={{ color: "var(--color-text-primary)" }}>
+                            {msg.subject || "(No Subject)"}
+                        </p>
+                        {msg.snippet && (
+                            <p className="text-[10px] opacity-40 line-clamp-1 leading-relaxed">{msg.snippet}</p>
+                        )}
                     </motion.a>
                 ))}
 
                 {messages.length === 0 && !loading && (
-                    <div className="text-center py-4">
-                        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>No messages found for this filter.</p>
+                    <div className="flex-1 flex flex-col items-center justify-center opacity-30 gap-2">
+                        <Mail size={24} />
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-center px-4">
+                            No messages found for this filter
+                        </p>
                     </div>
                 )}
 
                 {loading && messages.length > 0 && (
-                    <div className="flex justify-center py-3">
-                        <RefreshCw size={14} className="animate-spin" style={{ color: "var(--color-accent)" }} />
+                    <div className="flex justify-center py-4">
+                        <RefreshCw size={14} className="animate-spin text-purple-400/50" />
                     </div>
                 )}
             </div>

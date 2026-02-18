@@ -21,17 +21,24 @@ export default function Header() {
 
     return (
         <header
-            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-0 h-auto sm:h-16 shrink-0"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+            className="relative flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-0 h-auto sm:h-16 shrink-0"
+            style={{
+                background: "rgba(0,0,0,0.25)",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                backdropFilter: "blur(20px)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
+            }}
         >
+            {/* Bottom Highlight Strip */}
+            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-[#7C5CFF]/30 via-[#7C5CFF]/10 to-transparent opacity-60 pointer-events-none" />
             {/* Top row on mobile: search + right icons */}
             <div className="flex items-center gap-3 w-full sm:w-auto">
                 {/* Search */}
                 <div
-                    className="flex items-center gap-2 px-4 h-10 rounded-xl flex-1 sm:flex-initial sm:w-[280px]"
+                    className="flex items-center gap-2 px-4 h-10 rounded-xl flex-1 sm:flex-initial sm:w-[280px] transition-all duration-200 focus-within:border-[#7C5CFF]/40 focus-within:shadow-[0_0_30px_rgba(124,92,255,0.20)]"
                     style={{
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid rgba(255,255,255,0.06)",
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.1)",
                     }}
                 >
                     <Search size={16} className="text-[color:var(--color-text-muted)]" />

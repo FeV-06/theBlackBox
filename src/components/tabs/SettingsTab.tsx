@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import {
     Download, Upload, ToggleLeft, ToggleRight, Palette, Puzzle, Trash2,
-    LogIn, LogOut, User, Loader2, Plus, Copy,
+    LogIn, LogOut, User, Loader2, Plus, Copy, Lock, Unlock
 } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
-import { WIDGET_REGISTRY } from "@/components/widgets/WidgetGrid";
+import { WIDGET_REGISTRY } from "@/lib/widgetRegistry";
 import type { QuoteVibe } from "@/types/widget";
 import type { WidgetType } from "@/types/widgetInstance";
 
@@ -20,7 +20,7 @@ const VIBES: { value: QuoteVibe; label: string }[] = [
 ];
 
 export default function SettingsTab() {
-    const { instances, layout, toggleInstance, removeInstance, addInstance, duplicateInstance, resetToDefaults } = useWidgetStore();
+    const { instances, layout, toggleInstance, removeInstance, addInstance, duplicateInstance, resetToDefaults, toggleInstanceLock } = useWidgetStore();
     const { quoteVibe, setQuoteVibe, apiWidgets, deleteApiWidget } = useSettingsStore();
     const { isConnected, profile, loading, connectWithPopup, disconnect, checkConnection } = useGoogleAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +178,12 @@ export default function SettingsTab() {
                                         <span className="text-sm block truncate" style={{ color: inst.enabled ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>{title}</span>
                                         <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>{inst.type}</span>
                                     </div>
+                                    <button onClick={() => toggleInstanceLock(id)} className="p-1" title={inst.isLocked ? "Unlock" : "Lock"}>
+                                        {inst.isLocked
+                                            ? <Lock size={16} style={{ color: "var(--color-accent)" }} />
+                                            : <Unlock size={16} style={{ color: "var(--color-text-muted)" }} />
+                                        }
+                                    </button>
                                     <button onClick={() => toggleInstance(id)} className="p-1" title={inst.enabled ? "Disable" : "Enable"}>
                                         {inst.enabled
                                             ? <ToggleRight size={20} style={{ color: "var(--color-accent)" }} />

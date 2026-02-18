@@ -85,6 +85,8 @@ export async function GET(req: NextRequest) {
     const rawQuery = (params.get("query") ?? "").trim();
     const pageToken = params.get("pageToken") || undefined;
 
+    const maxResults = parseInt(params.get("maxResults") ?? "50", 10);
+
     // ── Build query ──
     let query: string;
     let unreadQuery: string;
@@ -116,7 +118,7 @@ export async function GET(req: NextRequest) {
         const { data: msgList } = await gmail.users.messages.list({
             userId: "me",
             q: query,
-            maxResults: PAGE_SIZE,
+            maxResults,
             pageToken,
         });
 

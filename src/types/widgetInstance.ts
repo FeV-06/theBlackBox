@@ -14,10 +14,13 @@ export type WidgetType =
     | "custom_api"
     | "gmail";
 
-/**
- * A single widget instance on the dashboard.
- * Multiple instances of the same type can coexist.
- */
+export interface WidgetLayout {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
 export interface WidgetInstance {
     instanceId: string;
     type: WidgetType;
@@ -26,6 +29,10 @@ export interface WidgetInstance {
     createdAt: number;
     updatedAt: number;
     config: Record<string, unknown>;
+    layout: WidgetLayout;
+    isLocked?: boolean;
+    groupDisabled?: boolean;
+    zIndex?: number;
 }
 
 /**

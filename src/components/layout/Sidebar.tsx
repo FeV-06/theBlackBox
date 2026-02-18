@@ -26,12 +26,15 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     return (
-        <aside className="fixed left-0 top-0 bottom-0 w-[72px] hidden md:flex flex-col items-center py-6 z-50"
+        <aside className="fixed left-0 top-0 bottom-0 w-[72px] hidden md:flex flex-col items-center py-6 z-50 tbb-panel"
             style={{
-                background: "linear-gradient(180deg, rgba(11,11,14,0.95) 0%, rgba(20,20,25,0.98) 100%)",
-                borderRight: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(0,0,0,0.3)",
+                borderRight: "1px solid rgba(255,255,255,0.1)",
+                boxShadow: "0 0 60px rgba(0,0,0,0.6)",
             }}
         >
+            {/* Glow Strip */}
+            <div className="absolute top-0 right-0 h-full w-[2px] bg-gradient-to-b from-[#7C5CFF]/40 via-[#7C5CFF]/10 to-transparent opacity-60 pointer-events-none" />
             {/* Nav icons */}
             <nav className="flex flex-col items-center gap-2 flex-1 mt-4">
                 {navItems.map((item) => {
@@ -41,7 +44,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                         <button
                             key={item.id}
                             onClick={() => onTabChange(item.id)}
-                            className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group"
+                            className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group hover:bg-white/5 hover:shadow-[0_0_15px_rgba(124,92,255,0.12)]"
                             style={{
                                 background: isActive ? "rgba(124, 92, 255, 0.12)" : "transparent",
                                 color: isActive ? "#7C5CFF" : "rgba(255,255,255,0.4)",
@@ -53,8 +56,9 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                                     layoutId="sidebar-active"
                                     className="absolute inset-0 rounded-xl"
                                     style={{
-                                        background: "rgba(124, 92, 255, 0.12)",
-                                        boxShadow: "0 0 20px rgba(124, 92, 255, 0.15)",
+                                        background: "rgba(124, 92, 255, 0.15)",
+                                        boxShadow: "0 0 25px rgba(124, 92, 255, 0.25)",
+                                        border: "1px solid rgba(124, 92, 255, 0.2)",
                                     }}
                                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                 />

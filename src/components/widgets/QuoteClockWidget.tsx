@@ -4,12 +4,15 @@ import { useState, useEffect } from "react";
 import { Clock, Quote } from "lucide-react";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { fetchQuote } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import type { WidgetInstance } from "@/types/widgetInstance";
+import { SkeletonLines } from "@/components/ui/Skeleton";
 
 export default function QuoteClockWidget({ instance }: { instance: WidgetInstance }) {
     const [time, setTime] = useState("");
     const [date, setDate] = useState("");
-    const [quote, setQuote] = useState("");
+    const [quoteStr, setQuoteStr] = useState("");
+    const [loading, setLoading] = useState(true);
     const vibe = useSettingsStore((s) => s.quoteVibe);
 
     useEffect(() => {
@@ -37,8 +40,14 @@ export default function QuoteClockWidget({ instance }: { instance: WidgetInstanc
     }, []);
 
     useEffect(() => {
-        fetchQuote(vibe).then(setQuote);
+        setLoading(true);
+        fetchQuote(vibe).then((q) => {
+            setQuoteStr(q);
+            setLoading(false);
+        });
     }, [vibe]);
+
+    const [text, author] = quoteStr.split(" — ");
 
     return (
         <div className="flex flex-col gap-3">
@@ -51,12 +60,38 @@ export default function QuoteClockWidget({ instance }: { instance: WidgetInstanc
                 {date}
             </p>
             <div
-                className="mt-2 pt-3"
+                className="mt-2 pt-3 min-h-[72px]"
                 style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
             >
-                <p className="text-sm italic leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-                    &ldquo;{quote || "Loading..."}&rdquo;
-                </p>
+                <AnimatePresence mode="wait">
+                    {loading ? (
+                        <motion.div
+                            key="skeleton"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                        >
+                            <SkeletonLines lines={3} />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="quote"
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            <p className="text-sm italic leading-relaxed line-clamp-3" style={{ color: "var(--color-text-secondary)" }}>
+                                &ldquo;{text}&rdquo;
+                            </p>
+                            {author && (
+                                <p className="text-xs mt-1 font-medium truncate opacity-60" style={{ color: "var(--color-text-primary)" }}>
+                                    — {author}
+                                </p>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

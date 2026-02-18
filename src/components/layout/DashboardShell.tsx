@@ -26,7 +26,7 @@ export default function DashboardShell() {
     const ActiveComponent = tabComponents[activeTab];
 
     return (
-        <div className="flex min-h-screen">
+        <div className="flex h-screen">
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex flex-col flex-1 ml-0 md:ml-[72px]">

@@ -16,52 +16,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useWidgetStore } from "@/store/useWidgetStore";
+import { WIDGET_REGISTRY, registryMap } from "@/lib/widgetRegistry";
 import WidgetCard from "./WidgetCard";
 import type { WidgetTypeDefinition, WidgetInstance } from "@/types/widgetInstance";
 import type { TabId } from "@/types/widget";
-
-// Widget imports
-import QuoteClockWidget from "./QuoteClockWidget";
-import TodoWidget from "./TodoWidget";
-import HabitTrackerWidget from "./HabitTrackerWidget";
-import GitHubWidget from "./GitHubWidget";
-import WeatherWidget from "./WeatherWidget";
-import QuickLinksWidget from "./QuickLinksWidget";
-import FocusSummaryWidget from "./FocusSummaryWidget";
 import ProjectsOverviewWidget from "./ProjectsOverviewWidget";
-import CustomApiWidget from "./CustomApiWidget";
-import GmailWidget from "./GmailWidget";
+import { AlertTriangle } from "lucide-react";
 
-import {
-    Clock,
-    CheckSquare,
-    Flame,
-    Github,
-    CloudSun,
-    Link2,
-    Timer,
-    FolderKanban,
-    Puzzle,
-    Mail,
-    AlertTriangle,
-} from "lucide-react";
 
-/* ─── Widget Type Registry ─── */
 
-export const WIDGET_REGISTRY: WidgetTypeDefinition[] = [
-    { type: "quote_clock", defaultTitle: "Quote & Clock", icon: Clock, component: QuoteClockWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "todo", defaultTitle: "To-Do List", icon: CheckSquare, component: TodoWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "habit_tracker", defaultTitle: "Habit Tracker", icon: Flame, component: HabitTrackerWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "github", defaultTitle: "GitHub", icon: Github, component: GitHubWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "weather", defaultTitle: "Weather", icon: CloudSun, component: WeatherWidget, allowMultiple: true, defaultConfig: {} },
-    { type: "quick_links", defaultTitle: "Quick Links", icon: Link2, component: QuickLinksWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "focus_summary", defaultTitle: "Focus Summary", icon: Timer, component: FocusSummaryWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "projects_overview", defaultTitle: "Projects", icon: FolderKanban, component: ProjectsOverviewWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "custom_api", defaultTitle: "Custom API", icon: Puzzle, component: CustomApiWidget, allowMultiple: true, defaultConfig: {} },
-    { type: "gmail", defaultTitle: "Gmail", icon: Mail, component: GmailWidget, allowMultiple: true, defaultConfig: { mode: "basic", mailbox: "inbox", status: "all", category: "all", query: "" } },
-];
-
-const registryMap = new Map(WIDGET_REGISTRY.map((d) => [d.type, d]));
 
 /* ─── Fallback widget for unknown types ─── */
 

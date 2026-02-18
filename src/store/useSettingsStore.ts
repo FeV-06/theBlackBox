@@ -29,6 +29,7 @@ interface SettingsState {
     apiWidgets: ApiWidgetInstance[];
     gmail: GmailSettings;
     gmailPresets: GmailPreset[];
+    dashboardEditMode: boolean;
     setQuoteVibe: (vibe: QuoteVibe) => void;
     addBookmark: (title: string, url: string) => void;
     deleteBookmark: (id: string) => void;
@@ -41,6 +42,8 @@ interface SettingsState {
     deleteGmailPreset: (id: string) => void;
     updateGmailPreset: (id: string, updates: { name?: string; query?: string }) => void;
     applyGmailPreset: (id: string) => void;
+    toggleDashboardEditMode: () => void;
+    setDashboardEditMode: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -55,8 +58,11 @@ export const useSettingsStore = create<SettingsState>()(
             apiWidgets: [],
             gmail: DEFAULT_GMAIL,
             gmailPresets: DEFAULT_GMAIL_PRESETS,
+            dashboardEditMode: false,
 
             setQuoteVibe: (vibe) => set({ quoteVibe: vibe }),
+            toggleDashboardEditMode: () => set((s) => ({ dashboardEditMode: !s.dashboardEditMode })),
+            setDashboardEditMode: (value) => set({ dashboardEditMode: value }),
 
             addBookmark: (title, url) =>
                 set((s) => ({
