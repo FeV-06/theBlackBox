@@ -20,6 +20,11 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Prevent scroll anchoring snap-back */
+* {
+  overflow-anchor: none;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -138,6 +143,26 @@ body {
 
 .animate-glow {
   animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Skeleton Shimmer */
+@keyframes tbb-shimmer {
+  0% {
+    background-position: -100% 0;
+  }
+
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+.tbb-skeleton {
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.08) 37%,
+      rgba(255, 255, 255, 0.03) 63%);
+  background-size: 400% 100%;
+  animation: tbb-shimmer 1.4s ease-in-out infinite;
 }
 
 /* Button base */

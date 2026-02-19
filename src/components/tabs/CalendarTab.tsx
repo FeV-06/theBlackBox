@@ -3,503 +3,506 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    CalendarDays, Plus, Trash2, Edit3, ChevronLeft, ChevronRight,
-    LogIn, RefreshCw, Loader2, Pencil, MapPin, RotateCcw,
+    ChevronLeft, ChevronRight, RefreshCw, Loader2,
+    Calendar as CalendarIcon, Plus, Clock, MoreHorizontal
 } from "lucide-react";
+import { PortalMenu } from "@/components/ui/PortalMenu";
+import { Edit3, CalendarDays, Trash2 } from "lucide-react";
 import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
 import {
     type CalendarEvent,
     isAllDayEvent,
-    getEventDateLocal,
     formatEventTimeRange,
-    extractTimeHHMM,
-    buildDateTimeISO,
-    getBrowserTimeZone,
+    getEventDateLocal,
 } from "@/lib/calendarTime";
-import {
-    type GoogleColorMap,
-    getEventColorStyle,
-    getEventBarColor,
-    getEventDotColor,
-    getColorPickerOptions,
-} from "@/lib/calendarColors";
+import { GOOGLE_COLOR_MAP, DEFAULT_EVENT_COLOR } from "@/lib/googleCalendarColors";
+import { buildMonthGrid, isSameMonth, isSameDay, isToday, addDays, subDays } from "@/lib/dateUtils";
+import EventChip from "@/components/calendar/EventChip";
+import EventModal from "@/components/calendar/EventModal";
 
-/* ── helpers ── */
-const fmtDateLabel = (iso: string) =>
-    new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-        day: "numeric", month: "short", year: "numeric",
-    });
+/* ── Animation Variants ── */
+const slideVariants = {
+    enter: (direction: number) => ({
+        x: direction > 0 ? 50 : -50,
+        opacity: 0
+    }),
+    center: {
+        zIndex: 1,
+        x: 0,
+        opacity: 1
+    },
+    exit: (direction: number) => ({
+        zIndex: 0,
+        x: direction < 0 ? 50 : -50,
+        opacity: 0
+    })
+};
 
-const fmtLongDate = (iso: string) =>
-    new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-        weekday: "long", month: "long", day: "numeric",
-    });
+const STATICS = {
+    DAYS: ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+};
 
 export default function CalendarTab() {
     const { isConnected, connectWithPopup, checkConnection } = useGoogleAuthStore();
 
+    // Calendar State
     const [events, setEvents] = useState<CalendarEvent[]>([]);
-    const [colorMap, setColorMap] = useState<GoogleColorMap | null>(null);
-    const [year, setYear] = useState(new Date().getFullYear());
-    const [month, setMonth] = useState(new Date().getMonth());
-    const [selDate, setSelDate] = useState<string | null>(null);
-    const [showForm, setShowForm] = useState(false);
-    const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+    const [currentDate, setCurrentDate] = useState(new Date()); // Reference for month view
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date()); // Selected day for side panel
 
-    // Form fields
-    const [title, setTitle] = useState("");
-    const [desc, setDesc] = useState("");
-    const [sTime, setSTime] = useState("09:00");
-    const [eTime, setETime] = useState("10:00");
-    const [selColorId, setSelColorId] = useState<string | undefined>(undefined);
-
-    // Edit-specific: original context + move-to date
-    const [origDate, setOrigDate] = useState<string | null>(null);
-    const [origSTime, setOrigSTime] = useState("");
-    const [origETime, setOrigETime] = useState("");
-    const [moveDate, setMoveDate] = useState<string>("");
-    const [calChangedHint, setCalChangedHint] = useState(false);
-
+    // UI State
+    const [direction, setDirection] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+    const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
-    useEffect(() => { checkConnection(); }, [checkConnection]);
+    // Initial Load
+    useEffect(() => {
+        checkConnection();
+    }, [checkConnection]);
 
-    const fetchColors = useCallback(async () => {
-        try {
-            const res = await fetch("/api/google/calendar/colors");
-            if (!res.ok) return;
-            const data = await res.json();
-            setColorMap(data.event ?? null);
-        } catch { /* non-critical */ }
-    }, []);
+    // Derived Grid
+    const monthGrid = useMemo(() => buildMonthGrid(currentDate), [currentDate]);
+
+    // ── API Interactions ──
 
     const fetchEvents = useCallback(async () => {
         if (!isConnected) return;
         setLoading(true);
-        setError("");
         try {
-            const gridStart = new Date(year, month, 1);
-            gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-            const gridEnd = new Date(year, month + 1, 0);
-            gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()) + 1);
-            const params = new URLSearchParams({
-                timeMin: gridStart.toISOString(),
-                timeMax: gridEnd.toISOString(),
-            });
+            // Fetch range covers the entire grid (including padding days)
+            const gridStart = monthGrid[0];
+            const gridEnd = monthGrid[monthGrid.length - 1];
+
+            // Add slight buffer just in case of timezone edge cases
+            const timeMin = subDays(gridStart, 1).toISOString();
+            const timeMax = addDays(gridEnd, 1).toISOString();
+
+            const params = new URLSearchParams({ timeMin, timeMax });
             const res = await fetch(`/api/google/calendar/events?${params}`);
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             setEvents(data.events ?? []);
-        } catch {
-            setError("Failed to load calendar events");
+        } catch (error) {
+            console.error("Failed to load events", error);
         } finally {
             setLoading(false);
         }
-    }, [isConnected, year, month]);
+    }, [isConnected, monthGrid]);
 
+    // Fetch on mount and when month changes
     useEffect(() => {
-        if (isConnected) { fetchEvents(); fetchColors(); }
-    }, [isConnected, fetchEvents, fetchColors]);
+        fetchEvents();
+    }, [fetchEvents]);
 
-    // Calendar math
-    const daysIn = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const mName = new Date(year, month).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    const today = new Date().toISOString().slice(0, 10);
-    const dateStr = (d: number) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-    const prevM = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
-    const nextM = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
-
-    const eventsForDate = (ds: string) => events.filter((ev) => getEventDateLocal(ev) === ds);
-    const dayEvents = selDate ? eventsForDate(selDate) : [];
-    const colorOptions = getColorPickerOptions(colorMap);
-
-    // When editing: compute final save date (moveDate for edits, selDate for creates)
-    const isEditing = !!editEvent;
-    const saveDate = isEditing ? moveDate : selDate;
-
-    // Detect calendar selection change while editing
-    const handleDateSelect = useCallback((ds: string) => {
-        if (isEditing && showForm && ds !== moveDate) {
-            setCalChangedHint(true);
-        }
-        setSelDate(ds);
-    }, [isEditing, showForm, moveDate]);
-
-    const reset = () => {
-        setTitle(""); setDesc(""); setSTime("09:00"); setETime("10:00");
-        setSelColorId(undefined); setEditEvent(null); setShowForm(false);
-        setOrigDate(null); setOrigSTime(""); setOrigETime("");
-        setMoveDate(""); setCalChangedHint(false);
-    };
-
-    const handleSave = async () => {
-        if (!title.trim() || !saveDate) return;
-        setSaving(true);
+    const handleCreateEvent = async (eventData: Partial<CalendarEvent>) => {
         try {
-            const tz = getBrowserTimeZone();
-            const start = buildDateTimeISO(saveDate, sTime, tz);
-            const end = buildDateTimeISO(saveDate, eTime, tz);
-            const payload: Record<string, unknown> = {
-                summary: title.trim(), description: desc.trim(), start, end, timeZone: tz,
-            };
-            if (selColorId) payload.colorId = selColorId;
-
-            if (editEvent) {
-                const res = await fetch(`/api/google/calendar/events/${editEvent.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                if (!res.ok) throw new Error("Update failed");
-            } else {
-                const res = await fetch("/api/google/calendar/events", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                if (!res.ok) throw new Error("Create failed");
-            }
-            reset();
-            await fetchEvents();
-        } catch {
-            setError("Failed to save event");
-        } finally {
-            setSaving(false);
+            const res = await fetch("/api/google/calendar/events", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(eventData),
+            });
+            if (!res.ok) throw new Error("Failed to create");
+            await fetchEvents(); // Refresh
+        } catch (e) {
+            console.error(e);
         }
     };
 
-    const handleDelete = async (eventId: string) => {
+    const handleUpdateEvent = async (eventData: Partial<CalendarEvent>) => {
+        if (!editingEvent) return;
         try {
-            const res = await fetch(`/api/google/calendar/events/${eventId}`, { method: "DELETE" });
-            if (!res.ok) throw new Error("Delete failed");
+            // Assuming PUT support or using POST if logic allows, checking generic implementation 
+            // from previous context, user said CRUD works. 
+            // Standardizing on PUT for update based on standard REST practices implied in the codebase.
+            // If not, we might need to verify the route, but usually nextjs apps following this pattern have a dynamic route.
+            const res = await fetch(`/api/google/calendar/events/${editingEvent.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(eventData),
+            });
+
+            if (!res.ok) throw new Error("Failed to update");
             await fetchEvents();
-        } catch {
-            setError("Failed to delete event");
+        } catch (e) {
+            console.error(e);
         }
     };
 
-    const handleEdit = (ev: CalendarEvent) => {
-        const evDate = getEventDateLocal(ev);
-        const evSTime = extractTimeHHMM(ev.start, ev.startTimeZone);
-        const evETime = extractTimeHHMM(ev.end, ev.endTimeZone);
-        setTitle(ev.summary);
-        setDesc(ev.description);
-        setSTime(evSTime);
-        setETime(evETime);
-        setSelColorId(ev.colorId);
-        setOrigDate(evDate);
-        setOrigSTime(evSTime);
-        setOrigETime(evETime);
-        setMoveDate(evDate);
-        setCalChangedHint(false);
-        setEditEvent(ev);
-        setShowForm(true);
+    const handleDeleteEvent = async (eventId: string) => {
+        try {
+            const res = await fetch(`/api/google/calendar/events/${eventId}`, {
+                method: "DELETE",
+            });
+            if (!res.ok) throw new Error("Failed to delete");
+            await fetchEvents();
+            setIsEventModalOpen(false); // Close modal
+        } catch (e) {
+            console.error(e);
+        }
     };
 
-    // Memoized preview label
-    const previewDateLabel = useMemo(() => {
-        if (!saveDate) return "";
-        return fmtDateLabel(saveDate);
-    }, [saveDate]);
+    const handleSaveEvent = (data: Partial<CalendarEvent>) => {
+        if (editingEvent) {
+            handleUpdateEvent(data);
+        } else {
+            handleCreateEvent(data);
+        }
+        setEditingEvent(null);
+    };
 
-    // ─── Not connected ───
+    // ── Interaction Handlers ──
+
+    const handleSelectEvent = (event: CalendarEvent) => {
+        // Parse "YYYY-MM-DD" to local Date
+        const dateStr = getEventDateLocal(event);
+        const [y, m, d] = dateStr.split("-").map(Number);
+        setSelectedDate(new Date(y, m - 1, d));
+    };
+
+    // ── Navigation ──
+
+    const nextMonth = () => {
+        setDirection(1);
+        setCurrentDate(prev => {
+            const next = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+            return next;
+        });
+    };
+
+    const prevMonth = () => {
+        setDirection(-1);
+        setCurrentDate(prev => {
+            const back = new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+            return back;
+        });
+    };
+
+    const jumpToToday = () => {
+        const today = new Date();
+        setDirection(today > currentDate ? 1 : -1);
+        setCurrentDate(today);
+        setSelectedDate(today);
+    };
+
+    // ── Render Helpers ──
+
+    const getEventsForDay = (date: Date) => {
+        // We match based on local date string YYYY-MM-DD
+        // event.start is ISO. getEventDateLocal returns YYYY-MM-DD
+        const localDateStr = date.toLocaleDateString("en-CA"); // YYYY-MM-DD
+
+        return events.filter(e => {
+            const eDate = getEventDateLocal(e);
+            return eDate === localDateStr;
+        });
+    };
+
+    const eventsForSelectedDate = getEventsForDay(selectedDate);
+
+    // Auth Guard
     if (!isConnected) {
         return (
-            <div className="animate-fade-in">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>Calendar</h1>
-                        <p className="text-sm mt-1" style={{ color: "var(--color-text-secondary)" }}>Connect Google to manage your calendar</p>
+            <div className="flex flex-col items-center justify-center h-full space-y-6 animate-in fade-in duration-500 text-white">
+                <div className="relative group">
+                    <div className="absolute inset-0 bg-purple-500/20 blur-xl rounded-full group-hover:bg-purple-500/30 transition-all duration-500" />
+                    <div className="relative p-6 bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-sm shadow-xl">
+                        <CalendarIcon size={48} className="text-purple-400" />
                     </div>
                 </div>
-                <div className="glass-card p-8 flex flex-col items-center gap-4">
-                    <CalendarDays size={40} style={{ color: "var(--color-text-muted)" }} />
-                    <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>Connect your Google account to sync your calendar</p>
-                    <button onClick={connectWithPopup} className="btn-accent flex items-center gap-2 px-4 py-2">
-                        <LogIn size={16} /> Connect Google
-                    </button>
+                <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                        Connect Calendar
+                    </h2>
+                    <p className="text-white/40 max-w-xs mx-auto">
+                        Link your Google Calendar to view and manage your schedule directly from the dashboard.
+                    </p>
                 </div>
+                <button
+                    onClick={connectWithPopup}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-white text-black font-semibold rounded-full hover:scale-105 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                >
+                    <RefreshCw size={18} />
+                    <span>Connect Google Account</span>
+                </button>
             </div>
         );
     }
 
-    // ─── Connected ───
     return (
-        <div className="animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>Calendar</h1>
-                    <p className="text-sm mt-1" style={{ color: "var(--color-text-secondary)" }}>Google Calendar — synced</p>
-                </div>
-                <button onClick={fetchEvents} disabled={loading} className="btn-ghost flex items-center gap-1.5 text-xs">
-                    <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
-                </button>
-            </div>
+        <div className="flex flex-col lg:flex-row h-full gap-6 p-2 lg:p-6 overflow-hidden text-white">
 
-            {error && (
-                <div className="glass-card p-3 mb-4 text-xs" style={{ color: "var(--color-danger)", borderColor: "rgba(248,113,113,0.2)" }}>
-                    {error}
-                    <button onClick={() => setError("")} className="ml-2 underline">dismiss</button>
-                </div>
-            )}
+            {/* ── Main Calendar Grid ── */}
+            <div className="flex-1 flex flex-col min-h-0 bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-sm">
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                {/* Month grid */}
-                <div className="lg:col-span-2 glass-card p-3 md:p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <button onClick={prevM} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--color-text-secondary)" }}><ChevronLeft size={18} /></button>
-                        <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>{mName}</h3>
-                        <button onClick={nextM} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--color-text-secondary)" }}><ChevronRight size={18} /></button>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1 mb-1">
-                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-                            <div key={d} className="text-center text-xs py-2 font-medium" style={{ color: "var(--color-text-muted)" }}>{d}</div>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-                        {Array.from({ length: daysIn }).map((_, i) => {
-                            const day = i + 1; const ds = dateStr(day); const isT = ds === today; const isS = ds === selDate;
-                            const dateEvents = eventsForDate(ds);
-                            const cnt = dateEvents.length;
-                            return (
-                                <button key={day} onClick={() => handleDateSelect(ds)}
-                                    className="relative h-8 md:h-10 rounded-lg text-xs md:text-sm transition-all hover:bg-white/[0.04] flex flex-col items-center justify-center"
-                                    style={{
-                                        background: isS ? "rgba(124,92,255,0.15)" : isT ? "rgba(124,92,255,0.06)" : "transparent",
-                                        color: isS || isT ? "var(--color-accent)" : "var(--color-text-primary)", fontWeight: isT ? 600 : 400
-                                    }}>
-                                    {day}
-                                    {cnt > 0 && (
-                                        <div className="flex gap-0.5 mt-0.5">
-                                            {dateEvents.slice(0, 3).map((ev, j) => (
-                                                <div key={j} className="w-1 h-1 rounded-full" style={{ background: getEventDotColor(ev.colorId, colorMap) }} />
-                                            ))}
-                                        </div>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {loading && (
-                        <div className="flex items-center justify-center mt-4 gap-2" style={{ color: "var(--color-text-muted)" }}>
-                            <Loader2 size={14} className="animate-spin" /> <span className="text-xs">Loading events...</span>
-                        </div>
-                    )}
-                </div>
+                {/* Header */}
+                <div className="relative px-6 py-5 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    {/* Desktop / Tablet Grid Layout */}
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
 
-                {/* Day panel */}
-                <div className="glass-card p-5">
-                    {selDate ? (<>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-                                {fmtLongDate(selDate)}
-                            </h3>
-                            <button onClick={() => { reset(); setShowForm(true); }} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--color-accent)" }}><Plus size={16} /></button>
-                        </div>
-
-                        {/* ── Event form ── */}
-                        <AnimatePresence>{showForm && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="flex flex-col gap-3 mb-4 overflow-hidden"
+                        {/* Left: Prev Button */}
+                        <div className="flex justify-start">
+                            <button
+                                onClick={prevMonth}
+                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm"
+                                title="Previous Month"
                             >
-                                {/* ── Sticky Edit Context Banner ── */}
-                                {isEditing && origDate && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-2xl p-4 backdrop-blur-xl"
-                                        style={{
-                                            background: "linear-gradient(135deg, rgba(124,92,255,0.08), rgba(124,92,255,0.02))",
-                                            border: "1px solid rgba(124,92,255,0.25)",
-                                            boxShadow: "0 0 20px rgba(124,92,255,0.08)",
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Pencil size={14} style={{ color: "#7C5CFF" }} />
-                                            <span className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                                                Editing Event: <span style={{ color: "#7C5CFF" }}>{editEvent?.summary}</span>
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                                                📅 Original Date: <span style={{ color: "var(--color-text-primary)" }}>{fmtDateLabel(origDate)}</span>
-                                            </span>
-                                            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                                                ⏱️ Original Time: <span style={{ color: "var(--color-text-primary)" }}>{origSTime} – {origETime}</span>
-                                            </span>
-                                        </div>
+                                <ChevronLeft size={20} />
+                            </button>
+                        </div>
 
-                                        {/* Calendar selection changed hint */}
-                                        {calChangedHint && selDate !== moveDate && (
-                                            <motion.p
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                className="text-xs italic mt-2"
-                                                style={{ color: "rgba(251,191,36,0.9)" }}
-                                            >
-                                                You selected {fmtDateLabel(selDate!)} on the calendar. Click &quot;Use Selected Date&quot; to move this event.
-                                            </motion.p>
-                                        )}
-                                    </motion.div>
-                                )}
+                        {/* Center: Month Title */}
+                        <div className="flex justify-center">
+                            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight text-center min-w-[140px]">
+                                {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                            </h2>
+                        </div>
 
-                                {/* ── Form fields ── */}
-                                <div className="flex flex-col gap-2 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)" }}>
-                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title"
-                                        className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[color:var(--color-accent)]" style={{ color: "var(--color-text-primary)" }} />
-                                    <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description"
-                                        className="bg-transparent border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-xs outline-none" style={{ color: "var(--color-text-primary)" }} />
-                                    <div className="flex gap-2">
-                                        <input type="time" value={sTime} onChange={e => setSTime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
-                                        <input type="time" value={eTime} onChange={e => setETime(e.target.value)} className="flex-1 bg-transparent border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-xs outline-none" style={{ color: "var(--color-text-primary)", colorScheme: "dark" }} />
-                                    </div>
-                                    {/* Color picker */}
-                                    {colorOptions.length > 0 && (
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="text-xs mr-1" style={{ color: "var(--color-text-muted)" }}>Color:</span>
-                                            <button onClick={() => setSelColorId(undefined)}
-                                                className="w-5 h-5 rounded-full transition-transform hover:scale-110"
-                                                style={{ background: "linear-gradient(135deg, #7C5CFF, #5B3FCC)", outline: selColorId === undefined ? "2px solid white" : "none", outlineOffset: 2 }}
-                                                title="Default" />
-                                            {colorOptions.map(opt => (
-                                                <button key={opt.id} onClick={() => setSelColorId(opt.id)}
-                                                    className="w-5 h-5 rounded-full transition-transform hover:scale-110"
-                                                    style={{ background: opt.background, outline: selColorId === opt.id ? "2px solid white" : "none", outlineOffset: 2 }}
-                                                    title={`Color ${opt.id}`} />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                        {/* Right: Next + Actions */}
+                        <div className="flex justify-end items-center gap-2">
+                            <button
+                                onClick={nextMonth}
+                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm mr-2"
+                                title="Next Month"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
 
-                                {/* ── Move Event To (edit only) ── */}
-                                {isEditing && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-xl p-3"
-                                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
-                                    >
-                                        <div className="mb-2">
-                                            <p className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>Move Event To</p>
-                                            <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-                                                Change the event&apos;s date explicitly. Won&apos;t change unless you confirm.
-                                            </p>
-                                        </div>
+                            <div className="h-6 w-px bg-white/10 mx-1" />
 
-                                        {/* Date input */}
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <CalendarDays size={14} style={{ color: "var(--color-text-muted)" }} />
-                                            <input
-                                                type="date"
-                                                value={moveDate}
-                                                onChange={e => { setMoveDate(e.target.value); setCalChangedHint(false); }}
-                                                className="flex-1 bg-transparent rounded-xl px-3 py-1.5 text-xs outline-none"
-                                                style={{
-                                                    color: "var(--color-text-primary)",
-                                                    colorScheme: "dark",
-                                                    background: "rgba(255,255,255,0.03)",
-                                                    border: "1px solid rgba(255,255,255,0.06)",
-                                                }}
-                                            />
-                                        </div>
+                            <button
+                                onClick={jumpToToday}
+                                className="px-3 py-1.5 h-9 text-xs font-semibold uppercase tracking-wider text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-all active:scale-95"
+                            >
+                                Today
+                            </button>
 
-                                        {/* Action buttons */}
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => { if (selDate) { setMoveDate(selDate); setCalChangedHint(false); } }}
-                                                className="flex-1 text-xs px-3 py-1.5 rounded-xl font-medium transition-all hover:scale-[1.02]"
-                                                style={{
-                                                    background: "linear-gradient(135deg, rgba(124,92,255,0.25), rgba(124,92,255,0.15))",
-                                                    color: "#EDEBFF",
-                                                    border: "1px solid rgba(124,92,255,0.35)",
-                                                }}
-                                            >
-                                                Use Selected Date
-                                            </button>
-                                            <button
-                                                onClick={() => { if (origDate) { setMoveDate(origDate); setCalChangedHint(false); } }}
-                                                className="flex-1 text-xs px-3 py-1.5 rounded-xl font-medium transition-all hover:scale-[1.02] hover:border-[color:var(--color-accent)]"
-                                                style={{
-                                                    background: "transparent",
-                                                    color: "var(--color-text-secondary)",
-                                                    border: "1px solid rgba(255,255,255,0.1)",
-                                                }}
-                                            >
-                                                <RotateCcw size={10} className="inline mr-1" />
-                                                Reset to Original
-                                            </button>
-                                        </div>
+                            <button
+                                onClick={fetchEvents}
+                                className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors"
+                                title="Refresh Events"
+                            >
+                                {loading ? <Loader2 size={16} className="animate-spin text-purple-400" /> : <RefreshCw size={16} />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-                                        {/* Preview row */}
-                                        <motion.div
-                                            key={saveDate}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="flex items-center gap-1.5 mt-2.5 pt-2"
-                                            style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
-                                        >
-                                            <MapPin size={12} style={{ color: "#7C5CFF" }} />
-                                            <span className="text-xs" style={{ color: "rgba(124,92,255,0.85)" }}>
-                                                Event will be saved on: <span className="font-medium" style={{ color: "#7C5CFF" }}>{previewDateLabel}</span>
-                                            </span>
-                                        </motion.div>
-                                    </motion.div>
-                                )}
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 border-b border-white/5 bg-white/[0.01]">
+                    {STATICS.DAYS.map(day => (
+                        <div key={day} className="py-3 text-center text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">
+                            {day}
+                        </div>
+                    ))}
+                </div>
 
-                                {/* ── Save / Cancel ── */}
-                                <div className="flex gap-2">
-                                    <button onClick={handleSave} disabled={saving} className="btn-accent text-xs px-3 py-1.5 flex items-center gap-1">
-                                        {saving && <Loader2 size={12} className="animate-spin" />}
-                                        {editEvent ? "Update" : "Add"}
-                                    </button>
-                                    <button onClick={reset} className="btn-ghost text-xs px-3 py-1.5">Cancel</button>
-                                </div>
-                            </motion.div>
-                        )}</AnimatePresence>
+                {/* Grid */}
+                <div className="flex-1 relative overflow-hidden">
+                    <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                        <motion.div
+                            key={currentDate.toISOString()} // Force re-render on month change
+                            custom={direction}
+                            variants={slideVariants}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{
+                                x: { type: "spring", stiffness: 300, damping: 30 },
+                                opacity: { duration: 0.2 }
+                            }}
+                            className="absolute inset-0 grid grid-cols-7 grid-rows-6 p-3 gap-2"
+                        >
+                            {monthGrid.map((date, i) => {
+                                const isCurrentMonth = isSameMonth(date, currentDate);
+                                const isSelected = isSameDay(date, selectedDate);
+                                const isTodayDate = isToday(date);
+                                const dayEvents = getEventsForDay(date);
 
-                        {/* ── Day events list ── */}
-                        <div className="flex flex-col gap-2">
-                            {dayEvents.length === 0 && !showForm && <p className="text-xs text-center py-6" style={{ color: "var(--color-text-muted)" }}>No events</p>}
-                            {dayEvents.map(ev => {
-                                const timeLabel = formatEventTimeRange(ev);
-                                const colorStyle = getEventColorStyle(ev.colorId, colorMap);
-                                const barColor = getEventBarColor(ev.colorId, colorMap);
                                 return (
-                                    <div key={ev.id}
-                                        className="flex items-start gap-2 p-3 rounded-xl group transition-colors"
-                                        style={{ background: colorStyle.backgroundColor, border: `1px solid ${colorStyle.borderColor}` }}
+                                    <div
+                                        key={i}
+                                        onClick={() => setSelectedDate(date)}
+                                        className={`
+                                            relative flex flex-col p-2 rounded-xl border transition-all duration-200 cursor-pointer min-h-0
+                                            ${!isCurrentMonth ? "opacity-30 bg-transparent border-transparent grayscale hover:opacity-50" : ""}
+                                            ${isSelected
+                                                ? "bg-purple-500/10 border-purple-500/30 shadow-[0_0_20px_rgba(124,92,255,0.1)] z-10 scale-[1.02]"
+                                                : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10 hover:shadow-lg"}
+                                            ${isTodayDate ? "ring-1 ring-purple-400/50 shadow-[inset_0_0_20px_rgba(124,92,255,0.15)]" : ""}
+                                        `}
                                     >
-                                        <div className="w-1 h-8 rounded-full mt-0.5 flex-shrink-0" style={{ background: barColor }} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{ev.summary}</p>
-                                            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{timeLabel}</p>
+                                        {/* Date Number */}
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span
+                                                className={`
+                                                    text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full
+                                                    ${isTodayDate
+                                                        ? "bg-purple-500 text-white shadow-lg shadow-purple-500/40"
+                                                        : isSelected ? "text-purple-300" : "text-white/60"}
+                                                `}
+                                            >
+                                                {date.getDate()}
+                                            </span>
                                         </div>
-                                        {!isAllDayEvent(ev) && (
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleEdit(ev)} className="p-1 rounded hover:bg-white/10" style={{ color: "var(--color-text-muted)" }}><Edit3 size={12} /></button>
-                                                <button onClick={() => handleDelete(ev.id)} className="p-1 rounded hover:bg-white/10" style={{ color: "var(--color-danger)" }}><Trash2 size={12} /></button>
-                                            </div>
-                                        )}
+
+                                        {/* Events List */}
+                                        <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                                            {dayEvents.slice(0, 2).map(event => (
+                                                <EventChip
+                                                    key={event.id}
+                                                    event={event}
+                                                    onSelect={handleSelectEvent}
+                                                    onEdit={(e) => {
+                                                        setEditingEvent(e);
+                                                        setIsEventModalOpen(true);
+                                                    }}
+                                                    onDelete={(e) => handleDeleteEvent(e.id)}
+                                                />
+                                            ))}
+                                            {dayEvents.length > 2 && (
+                                                <div className="px-1.5 py-0.5 text-[9px] font-medium text-white/40 hover:text-white/80 transition-colors">
+                                                    +{dayEvents.length - 2} more
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
-                        </div>
-                    </>) : (
-                        <div className="flex flex-col items-center justify-center py-12">
-                            <CalendarDays size={32} className="mb-3" style={{ color: "var(--color-text-muted)" }} />
-                            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Select a date</p>
-                        </div>
-                    )}
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
             </div>
+
+            {/* ── Side Panel (Details) ── */}
+            <div className={`
+                flex flex-col bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden transition-all duration-300
+                w-full lg:w-80 h-[300px] lg:h-auto shrink-0
+            `}>
+                <div className="p-6 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <div className="text-sm font-medium text-purple-400 uppercase tracking-widest mb-1">
+                        {selectedDate.toLocaleDateString("en-US", { weekday: "long" })}
+                    </div>
+                    <div className="text-3xl font-bold text-white">
+                        {selectedDate.getDate()}
+                    </div>
+                    <div className="text-sm text-white/40">
+                        {selectedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    {eventsForSelectedDate.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-40 text-center space-y-3 opacity-40">
+                            <CalendarIcon size={32} />
+                            <p className="text-xs max-w-[150px]">No events scheduled for this day.</p>
+                        </div>
+                    ) : (
+                        eventsForSelectedDate.map(event => {
+                            const color = GOOGLE_COLOR_MAP[event.colorId || ""] || DEFAULT_EVENT_COLOR;
+                            return (
+                                <motion.div
+                                    key={event.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="group relative p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all cursor-pointer overflow-hidden"
+                                    onClick={() => {
+                                        setEditingEvent(event);
+                                        setIsEventModalOpen(true);
+                                    }}
+                                >
+                                    <div
+                                        className="absolute left-0 top-0 bottom-0 w-1"
+                                        style={{ backgroundColor: color.background }}
+                                    />
+                                    <div className="pl-3">
+                                        <h4 className="font-medium text-sm text-white group-hover:text-purple-200 transition-colors line-clamp-1">
+                                            {event.summary || "(No Title)"}
+                                        </h4>
+                                        <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
+                                            <Clock size={10} />
+                                            <span>
+                                                {isAllDayEvent(event) ? "All Day" : formatEventTimeRange(event)}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Side Panel Item Menu */}
+                                    <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+                                        <PortalMenu
+                                            align="right"
+                                            trigger={
+                                                <div className="p-1.5 rounded-full text-white/20 hover:text-white hover:bg-white/10">
+                                                    <MoreHorizontal size={14} />
+                                                </div>
+                                            }
+                                        >
+                                            <div className="min-w-[140px] p-1 space-y-0.5">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingEvent(event);
+                                                        setIsEventModalOpen(true);
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded cursor-pointer text-left"
+                                                >
+                                                    <Edit3 size={12} />
+                                                    <span>Edit Event</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingEvent(event);
+                                                        setIsEventModalOpen(true);
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded cursor-pointer text-left"
+                                                >
+                                                    <CalendarDays size={12} />
+                                                    <span>Change Date</span>
+                                                </button>
+                                                <div className="h-px bg-white/10 my-1" />
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteEvent(event.id);
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded cursor-pointer text-left"
+                                                >
+                                                    <Trash2 size={12} />
+                                                    <span>Delete Event</span>
+                                                </button>
+                                            </div>
+                                        </PortalMenu>
+                                    </div>
+                                </motion.div>
+                            );
+                        })
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-white/5">
+                    <button
+                        onClick={() => {
+                            setEditingEvent(null);
+                            setIsEventModalOpen(true);
+                        }}
+                        className="w-full py-3 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-medium shadow-lg shadow-purple-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                        <Plus size={18} />
+                        Create Event
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Event Modal ── */}
+            <EventModal
+                isOpen={isEventModalOpen}
+                onClose={() => setIsEventModalOpen(false)}
+                onSave={handleSaveEvent}
+                onDelete={handleDeleteEvent}
+                initialDate={selectedDate.toLocaleDateString("en-CA")}
+                editingEvent={editingEvent}
+            />
         </div>
     );
 }

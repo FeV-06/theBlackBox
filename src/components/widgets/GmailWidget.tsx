@@ -17,6 +17,7 @@ import type {
     GmailCategory,
     GmailMessagePreview,
 } from "@/types/gmail";
+import { PortalSelect } from "@/components/ui/PortalSelect";
 
 /* ── Deep-link hash per mailbox ── */
 const MAILBOX_HASH: Record<GmailMailbox, string> = {
@@ -346,7 +347,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                 params.set("category", cfg.category);
             }
             if (pageToken) params.set("pageToken", pageToken);
-            params.set("maxResults", "7");
+            params.set("maxResults", "50");
 
             const res = await fetch(`/api/google/gmail/summary?${params}`);
             if (res.status === 401) { setError("Session expired. Reconnect Google."); return; }
@@ -429,16 +430,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
         );
     }
 
-    /* ── Loading first page ── */
-    if (loading && messages.length === 0 && !error) {
-        return (
-            <div className="flex flex-col gap-0.5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <SkeletonEmailRow key={i} />
-                ))}
-            </div>
-        );
-    }
+
 
     /* ── Error ── */
     if (error) {
@@ -540,30 +532,42 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
 
             {/* ═══════ BASIC FILTERS ═══════ */}
             {cfg.mode === "basic" && (
-                <div className="flex flex-wrap gap-1.5 shrink-0">
-                    <select value={cfg.mailbox} onChange={(e) => setConfig({ mailbox: e.target.value })} className={selectClass} style={selectStyle}>
-                        <option value="inbox" style={optStyle}>Inbox</option>
-                        <option value="sent" style={optStyle}>Sent</option>
-                        <option value="drafts" style={optStyle}>Drafts</option>
-                        <option value="starred" style={optStyle}>Starred</option>
-                        <option value="important" style={optStyle}>Important</option>
-                        <option value="spam" style={optStyle}>Spam</option>
-                        <option value="trash" style={optStyle}>Trash</option>
-                        <option value="all" style={optStyle}>All Mail</option>
-                    </select>
-                    <select value={cfg.status} onChange={(e) => setConfig({ status: e.target.value })} className={selectClass} style={selectStyle}>
-                        <option value="all" style={optStyle}>All Status</option>
-                        <option value="unread" style={optStyle}>Unread</option>
-                        <option value="read" style={optStyle}>Read</option>
-                    </select>
-                    <select value={cfg.category} onChange={(e) => setConfig({ category: e.target.value })} className={selectClass} style={selectStyle}>
-                        <option value="all" style={optStyle}>All Categories</option>
-                        <option value="primary" style={optStyle}>Primary</option>
-                        <option value="promotions" style={optStyle}>Promos</option>
-                        <option value="social" style={optStyle}>Social</option>
-                        <option value="updates" style={optStyle}>Updates</option>
-                        <option value="forums" style={optStyle}>Forums</option>
-                    </select>
+                <div className="flex flex-wrap gap-1.5 shrink-0 z-10">
+                    <PortalSelect
+                        value={cfg.mailbox}
+                        onChange={(val) => setConfig({ mailbox: val })}
+                        options={[
+                            { label: "Inbox", value: "inbox" },
+                            { label: "Sent", value: "sent" },
+                            { label: "Drafts", value: "drafts" },
+                            { label: "Starred", value: "starred" },
+                            { label: "Important", value: "important" },
+                            { label: "Spam", value: "spam" },
+                            { label: "Trash", value: "trash" },
+                            { label: "All Mail", value: "all" },
+                        ]}
+                    />
+                    <PortalSelect
+                        value={cfg.status}
+                        onChange={(val) => setConfig({ status: val })}
+                        options={[
+                            { label: "All Status", value: "all" },
+                            { label: "Unread", value: "unread" },
+                            { label: "Read", value: "read" },
+                        ]}
+                    />
+                    <PortalSelect
+                        value={cfg.category}
+                        onChange={(val) => setConfig({ category: val })}
+                        options={[
+                            { label: "All Categories", value: "all" },
+                            { label: "Primary", value: "primary" },
+                            { label: "Promotions", value: "promotions" },
+                            { label: "Social", value: "social" },
+                            { label: "Updates", value: "updates" },
+                            { label: "Forums", value: "forums" },
+                        ]}
+                    />
                 </div>
             )}
 
@@ -606,8 +610,8 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                                         setLocalQuery(p.query);
                                     }}
                                     className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${activePresetId === p.id
-                                            ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
-                                            : "bg-white/[0.03] border-white/5 text-white/30 hover:text-white/60"
+                                        ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+                                        : "bg-white/[0.03] border-white/5 text-white/30 hover:text-white/60"
                                         }`}
                                 >
                                     {p.name}
@@ -655,7 +659,15 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                     </motion.a>
                 ))}
 
-                {messages.length === 0 && !loading && (
+                {loading && messages.length === 0 && !error && (
+                    <div className="flex flex-col gap-0.5">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <SkeletonEmailRow key={i} />
+                        ))}
+                    </div>
+                )}
+
+                {messages.length === 0 && !loading && !error && (
                     <div className="flex-1 flex flex-col items-center justify-center opacity-30 gap-2">
                         <Mail size={24} />
                         <p className="text-[10px] uppercase font-bold tracking-widest text-center px-4">

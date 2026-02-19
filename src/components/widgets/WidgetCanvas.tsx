@@ -21,9 +21,33 @@ const GROUP_PROXIMITY_PX = 40;
 const WIDTH_SIMILARITY_PX = 40;
 const HEIGHT_SIMILARITY_PX = 40;
 
-const CANVAS_MIN_HEIGHT = 1400;
-const CANVAS_MIN_WIDTH = 1200;
-const CANVAS_PADDING_PX = 800;
+/* ── Canvas Sizing Constants ── */
+const SIDEBAR_WIDTH = 72;
+const HEADER_HEIGHT = 72;
+const CANVAS_MIN_EXTRA_PADDING_X = 0;
+const CANVAS_MIN_EXTRA_PADDING_Y = 0;
+// Replaced fixed padding with dynamic calculation in component
+
+/* ── Auto-Scroll Constants ── */
+const SCROLL_EDGE_THRESHOLD = 90;
+const SCROLL_SPEED = 22;
+
+/* ── Helper: Compute Widget Bounds ── */
+function computeCanvasBounds(instances: WidgetInstance[]) {
+    let maxRight = 0;
+    let maxBottom = 0;
+
+    for (const inst of instances) {
+        if (!inst?.layout) continue;
+        const right = inst.layout.x + inst.layout.w;
+        const bottom = inst.layout.y + inst.layout.h;
+
+        if (right > maxRight) maxRight = right;
+        if (bottom > maxBottom) maxBottom = bottom;
+    }
+
+    return { maxRight, maxBottom };
+}
 
 const STACK_OFFSET_X = 18;
 const STACK_OFFSET_Y = 14;
@@ -39,10 +63,6 @@ const ALIGN_SNAP_THRESHOLD = 10;
 const GUIDE_LINE_THICKNESS = 2;
 const GUIDE_COLOR = "rgba(124,92,255,0.55)";
 const GUIDE_GLOW = "0 0 18px rgba(124,92,255,0.45)";
-
-/* ── Auto-Scroll Constants ── */
-const SCROLL_EDGE_THRESHOLD = 90;
-const SCROLL_MAX_SPEED = 22;
 
 /* ── Types ── */
 interface WidgetRect {
@@ -209,7 +229,24 @@ function UnknownWidget({ instance }: { instance: WidgetInstance }) {
 export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
     const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks } = useWidgetStore();
     const dashboardEditMode = useSettingsStore((s) => s.dashboardEditMode);
-    const canvasRef = useRef<HTMLDivElement>(null);
+    /* ── Dynamic Canvas State (V4) ── */
+    const [surfaceSize, setSurfaceSize] = useState({ w: 0, h: 0 });
+
+    // Refs for V4 infinite scroll
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const surfaceRef = useRef<HTMLDivElement>(null);
+    const liveBoundsRef = useRef({ maxRight: 0, maxBottom: 0 });
+    const pointerRef = useRef({ x: 0, y: 0 });
+    const rafRef = useRef<number | null>(null);
+    const isDraggingRef = useRef(false);
+    const shrinkTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // V4.6: Scroll Preservation Refs
+    const dragScrollStartRef = useRef({ left: 0, top: 0 });
+    const scrollCompRef = useRef({ dx: 0, dy: 0 });
+
+    // V4.7: Horizontal Drag Fix Ref
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
 
     /* ── Active Widget State per Group ── */
     const [activeInGroup, setActiveInGroup] = useState<Record<string, string>>({});
@@ -222,18 +259,59 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
 
     // Alignment guide state
     const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({ vertical: [], horizontal: [] });
+    const [animatedLayoutOverrides, setAnimatedLayoutOverrides] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({});
     const [guidesVisible, setGuidesVisible] = useState(false);
 
-    // Auto-scroll refs
-    const scrollRef = useRef<HTMLDivElement | null>(null);
-    const scrollDirectionRef = useRef<"up" | "down" | null>(null);
-    const scrollRafRef = useRef<number | null>(null);
+    // Track Viewport
+    const [viewport, setViewport] = useState({ w: 0, h: 0 });
 
-    // Resolve scroll container once on mount (now guaranteed to work with h-screen)
-    useEffect(() => {
-        if (canvasRef.current) {
-            scrollRef.current = canvasRef.current.closest("main") as HTMLDivElement | null;
+    /* ── Safe Surface Setter (Scroll Preservation) ── */
+    const safeSetSurfaceSize = useCallback((next: { w: number; h: number }) => {
+        const el = scrollRef.current;
+        if (!el) {
+            setSurfaceSize(next);
+            return;
         }
+
+        // 🚨 CRITICAL (V4.5): never restore scroll during drag/resize
+        // This prevents "snap-back" because auto-scroll changes scroll position,
+        // and restoring old position would undo that progress.
+        if (isDraggingRef.current) {
+            setSurfaceSize(next);
+            return;
+        }
+
+        const prevLeft = el.scrollLeft;
+        const prevTop = el.scrollTop;
+
+        setSurfaceSize(next);
+
+        requestAnimationFrame(() => {
+            if (!scrollRef.current) return;
+            scrollRef.current.scrollLeft = prevLeft;
+            scrollRef.current.scrollTop = prevTop;
+        });
+    }, []);
+
+    useEffect(() => {
+        function updateViewport() {
+            if (scrollRef.current) {
+                setViewport({
+                    w: scrollRef.current.clientWidth,
+                    h: scrollRef.current.clientHeight
+                });
+            }
+        }
+        updateViewport();
+        window.addEventListener("resize", updateViewport);
+        return () => window.removeEventListener("resize", updateViewport);
+    }, []);
+
+    // Cleanup shrink timer
+    useEffect(() => {
+        return () => {
+            if (shrinkTimerRef.current) clearTimeout(shrinkTimerRef.current);
+        };
     }, []);
 
     /* ── Filter Visible Instances ── */
@@ -263,9 +341,8 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
             });
     }, [visibleInstances]);
 
-    /* ── Grouping Algorithm (Connected Components) ── */
+    /* ── Group Logic (BFS) ── */
     const groups = useMemo(() => {
-        // Split instances: only those NOT disabled for grouping participate
         const groupable = visibleInstances.filter(i => !i.groupDisabled);
         const standalone = visibleInstances.filter(i => i.groupDisabled);
 
@@ -273,18 +350,18 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
         const adj: Record<string, string[]> = {};
         nodes.forEach(id => adj[id] = []);
 
-        for (let i = 0; i < groupable.length; i++) {
-            for (let j = i + 1; j < groupable.length; j++) {
-                const A = groupable[i];
-                const B = groupable[j];
-                const AL = A.layout!;
-                const BL = B.layout!;
+        // Build Adjacency Graph (Overlap + Similar Size)
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+                const A = instances[nodes[i]];
+                const B = instances[nodes[j]];
+                if (!A?.layout || !B?.layout) continue;
 
-                const rectA = { left: AL.x, top: AL.y, right: AL.x + AL.w, bottom: AL.y + AL.h, w: AL.w, h: AL.h };
-                const rectB = { left: BL.x, top: BL.y, right: BL.x + BL.w, bottom: BL.y + BL.h, w: BL.w, h: BL.h };
+                const rectA = { left: A.layout.x, right: A.layout.x + A.layout.w, top: A.layout.y, bottom: A.layout.y + A.layout.h };
+                const rectB = { left: B.layout.x, right: B.layout.x + B.layout.w, top: B.layout.y, bottom: B.layout.y + B.layout.h };
 
-                const similarSize = Math.abs(rectA.w - rectB.w) <= WIDTH_SIMILARITY_PX &&
-                    Math.abs(rectA.h - rectB.h) <= HEIGHT_SIMILARITY_PX;
+                const sizeDiffA = Math.abs((A.layout.w * A.layout.h) - (B.layout.w * B.layout.h));
+                const similarSize = sizeDiffA < 5000;
 
                 const overlap =
                     rectA.left < rectB.right - 20 &&
@@ -337,18 +414,48 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
         return result;
     }, [visibleInstances]);
 
-    /* ── Dynamic Canvas Size ── */
-    const { canvasHeight } = useMemo(() => {
-        let maxBottom = 0;
-        visibleInstances.forEach(inst => {
-            const bottom = inst.layout!.y + inst.layout!.h;
-            if (bottom > maxBottom) maxBottom = bottom;
-        });
+    /* ── Dynamic Canvas Size Logic (V4) ── */
+    // 1. Adaptive Padding
+    const ADAPTIVE_PAD_X = 140; // Tight padding
+    const ADAPTIVE_PAD_Y = 220;
 
-        return {
-            canvasHeight: Math.max(CANVAS_MIN_HEIGHT, maxBottom + CANVAS_PADDING_PX),
-        };
-    }, [visibleInstances]);
+    // 2. Compute desired canvas size from visible widgets
+    const { maxBottom } = useMemo(
+        () => computeCanvasBounds(visibleInstances),
+        [visibleInstances]
+    );
+
+    // 3. Merge with Live Bounds (during drag)
+    const finalMaxBottom = Math.max(maxBottom, liveBoundsRef.current.maxBottom || 0);
+
+    const desiredCanvasHeight = finalMaxBottom + ADAPTIVE_PAD_Y;
+
+    // 4. Update Surface Size
+    useEffect(() => {
+        // Minimum size is always at least the viewport
+        const targetH = Math.max(viewport.h, desiredCanvasHeight);
+
+        const expanding = targetH > surfaceSize.h;
+
+        if (expanding) {
+            // Instant expand
+            if (shrinkTimerRef.current) clearTimeout(shrinkTimerRef.current);
+            safeSetSurfaceSize({ w: 0, h: targetH }); // w ignored
+            return;
+        }
+
+        // Delayed shrink
+        if (targetH === surfaceSize.h) return;
+
+        if (shrinkTimerRef.current) clearTimeout(shrinkTimerRef.current);
+
+        shrinkTimerRef.current = setTimeout(() => {
+            // Check bounds again to be safe
+            safeSetSurfaceSize({ w: 0, h: targetH }); // w ignored
+        }, 500);
+
+    }, [viewport.h, desiredCanvasHeight, surfaceSize, safeSetSurfaceSize]);
+
 
     /* ── Stack Cycling Logic ── */
     const handleCycleStack = useCallback((groupId: string, direction: "next" | "prev") => {
@@ -368,7 +475,7 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
 
         const nextActiveId = ids[nextIndex];
 
-        // Auto-align: Snap next active widget to current active widget's position to prevent drift
+        // Auto-align
         const currentInst = instances[currentActive];
         const nextInst = instances[nextActiveId];
 
@@ -418,17 +525,13 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
         const inst = instances[instanceId];
         if (!inst || !inst.layout) return;
 
-        // Persistent unlinking
         unlinkFromStack(instanceId);
-
-        // Deterministic separation (width + 260px)
         const offset = inst.layout.w + 260;
         updateInstanceLayout(instanceId, {
             x: snap(inst.layout.x + offset),
             y: snap(inst.layout.y),
         });
 
-        // Ensure it becomes standalone immediately by removing from activeInGroup state
         setActiveInGroup(prev => {
             const copy = { ...prev };
             delete copy[groupId];
@@ -439,337 +542,603 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
     /* ── Clear Guides Helper ── */
     const clearGuides = useCallback(() => {
         setGuidesVisible(false);
-        // Delay actual clear to allow fade-out
         setTimeout(() => setGuides({ vertical: [], horizontal: [] }), 150);
     }, []);
 
-    /* ── Auto-Scroll Helpers ── */
-    const autoScrollLoop = useCallback(() => {
-        if (!scrollRef.current || !scrollDirectionRef.current) return;
-        const speed = scrollDirectionRef.current === "down" ? SCROLL_MAX_SPEED : -SCROLL_MAX_SPEED;
-        scrollRef.current.scrollTop += speed;
-        scrollRafRef.current = requestAnimationFrame(autoScrollLoop);
+    /* ── Global Mouse Tracking (V4) ── */
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            pointerRef.current = { x: e.clientX, y: e.clientY };
+        };
+        window.addEventListener("mousemove", onMove);
+        return () => window.removeEventListener("mousemove", onMove);
     }, []);
 
-    const startAutoScroll = useCallback((dir: "up" | "down") => {
-        if (scrollDirectionRef.current === dir) return;
-        scrollDirectionRef.current = dir;
-        if (!scrollRafRef.current) {
-            scrollRafRef.current = requestAnimationFrame(autoScrollLoop);
-        }
-    }, [autoScrollLoop]);
+    // V4.7: Helper to get pointer in surface coordinates (scrolled space)
+    const getSurfacePointer = useCallback(() => {
+        const el = scrollRef.current;
+        if (!el) return { x: 0, y: 0 };
+
+        const rect = el.getBoundingClientRect();
+        return {
+            x: el.scrollLeft + (pointerRef.current.x - rect.left),
+            y: el.scrollTop + (pointerRef.current.y - rect.top),
+        };
+    }, []);
+
+    /* ── Auto-Scroll Logic (V4.4 Fix) ── */
+    const startAutoScroll = useCallback(() => {
+        if (isDraggingRef.current) return;
+        isDraggingRef.current = true;
+
+        // Reset compensation tracker
+        scrollCompRef.current = { dx: 0, dy: 0 };
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+        const loop = () => {
+            if (!isDraggingRef.current || !scrollRef.current) return;
+
+            const el = scrollRef.current;
+            const rect = el.getBoundingClientRect();
+            const { x, y } = pointerRef.current;
+
+            const EDGE = 90;
+            const SPEED = 22;
+
+            let dy = 0;
+
+            // V5.0: Vertical Auto-Scroll ONLY
+            if (y < rect.top + EDGE) dy = -SPEED;
+            if (y > rect.bottom - EDGE) dy = SPEED;
+
+            // Maintain V4.3 Expansion Logic (Vertical Only)
+            const currentH = surfaceRef.current?.offsetHeight || surfaceSize.h;
+
+            const distBottom = rect.bottom - y;
+
+            if (distBottom < EDGE) {
+                safeSetSurfaceSize({
+                    w: 0, // ignored
+                    h: Math.max(currentH, el.scrollTop + el.clientHeight + 500)
+                });
+            }
+
+            if (dy !== 0) {
+                el.scrollTop += dy;
+
+                // Track total auto-scroll amount
+                scrollCompRef.current.dy += dy;
+            }
+
+            rafRef.current = requestAnimationFrame(loop);
+        };
+
+        rafRef.current = requestAnimationFrame(loop);
+    }, [surfaceSize, safeSetSurfaceSize]);
 
     const stopAutoScroll = useCallback(() => {
-        scrollDirectionRef.current = null;
-        if (scrollRafRef.current) {
-            cancelAnimationFrame(scrollRafRef.current);
-            scrollRafRef.current = null;
+        isDraggingRef.current = false;
+        if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
         }
     }, []);
-
-    // Cleanup auto-scroll on unmount
-    useEffect(() => {
-        return () => stopAutoScroll();
-    }, [stopAutoScroll]);
 
     /* ── Render Logic ── */
     return (
         <div
-            ref={canvasRef}
-            className="relative w-full pb-[600px] overflow-visible"
-            style={{
-                height: canvasHeight,
-                backgroundImage: dashboardEditMode
-                    ? "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)"
-                    : "linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)",
-                backgroundSize: "20px 20px",
-            }}
+            ref={scrollRef}
+            className="relative w-full h-[calc(100vh-140px)] overflow-y-auto overflow-x-hidden rounded-2xl"
         >
-            {/* ── Alignment Guide Lines ── */}
-            {guides.vertical.map((x, i) => (
-                <div
-                    key={`vg-${i}`}
-                    className="absolute pointer-events-none"
-                    style={{
-                        left: x - GUIDE_LINE_THICKNESS / 2,
-                        top: 0,
-                        height: canvasHeight,
-                        width: GUIDE_LINE_THICKNESS,
-                        background: GUIDE_COLOR,
-                        boxShadow: GUIDE_GLOW,
-                        zIndex: 9999,
-                        opacity: guidesVisible ? 1 : 0,
-                        transition: "opacity 150ms ease",
-                    }}
-                />
-            ))}
-            {guides.horizontal.map((y, i) => (
-                <div
-                    key={`hg-${i}`}
-                    className="absolute pointer-events-none"
-                    style={{
-                        top: y - GUIDE_LINE_THICKNESS / 2,
-                        left: 0,
-                        width: "100%",
-                        height: GUIDE_LINE_THICKNESS,
-                        background: GUIDE_COLOR,
-                        boxShadow: GUIDE_GLOW,
-                        zIndex: 9999,
-                        opacity: guidesVisible ? 1 : 0,
-                        transition: "opacity 150ms ease",
-                    }}
-                />
-            ))}
+            <div
+                ref={surfaceRef}
+                className="relative transition-[height] duration-75 ease-out"
+                style={{
+                    width: "100%",
+                    height: surfaceSize.h,
+                    // minWidth/minHeight removed for V4.1 to rely on explicit pixel size
+                    backgroundImage: dashboardEditMode
+                        ? "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)"
+                        : "linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)",
+                    backgroundSize: "20px 20px",
+                }}
+            >
+                {/* ── Alignment Guide Lines ── */}
+                {guides.vertical.map((x, i) => (
+                    <div
+                        key={`vg-${i}`}
+                        className="absolute pointer-events-none"
+                        style={{
+                            left: x - GUIDE_LINE_THICKNESS / 2,
+                            top: 0,
+                            height: surfaceSize.h,
+                            width: GUIDE_LINE_THICKNESS,
+                            background: GUIDE_COLOR,
+                            boxShadow: GUIDE_GLOW,
+                            zIndex: 9999,
+                            opacity: guidesVisible ? 1 : 0,
+                            transition: "opacity 150ms ease",
+                        }}
+                    />
+                ))}
+                {guides.horizontal.map((y, i) => (
+                    <div
+                        key={`hg-${i}`}
+                        className="absolute pointer-events-none"
+                        style={{
+                            top: y - GUIDE_LINE_THICKNESS / 2,
+                            left: 0,
+                            width: "100%",
+                            height: GUIDE_LINE_THICKNESS,
+                            background: GUIDE_COLOR,
+                            boxShadow: GUIDE_GLOW,
+                            zIndex: 9999,
+                            opacity: guidesVisible ? 1 : 0,
+                            transition: "opacity 150ms ease",
+                        }}
+                    />
+                ))}
 
-            {groups.map((group) => {
-                const { groupId, instanceIds } = group;
+                {groups.map((group) => {
+                    const { groupId, instanceIds } = group;
 
-                // Deterministic default active: first in store.layout order
-                const defaultActive = instanceIds.reduce((prev: string, curr: string) => {
-                    const idxPrev = layout.indexOf(prev);
-                    const idxCurr = layout.indexOf(curr);
-                    return idxCurr < idxPrev ? curr : prev;
-                });
-
-                const activeId = activeInGroup[groupId] || defaultActive;
-                const activeInstance = instances[activeId];
-                if (!activeInstance || !activeInstance.layout) return null;
-
-                // Compute Stable Anchor: choose the widget with smallest y, if tie, smallest x
-                const anchorInstance = instanceIds
-                    .map((id: string) => instances[id])
-                    .filter((inst): inst is WidgetInstance => !!inst && !!inst.layout)
-                    .reduce((best: WidgetInstance, curr: WidgetInstance) => {
-                        if (!best) return curr;
-                        if (curr.layout!.y < best.layout!.y) return curr;
-                        if (curr.layout!.y === best.layout!.y && curr.layout!.x < best.layout!.x) return curr;
-                        return best;
+                    // Deterministic default active: first in store.layout order
+                    const defaultActive = instanceIds.reduce((prev: string, curr: string) => {
+                        const idxPrev = layout.indexOf(prev);
+                        const idxCurr = layout.indexOf(curr);
+                        return idxCurr < idxPrev ? curr : prev;
                     });
 
-                const anchorX = anchorInstance.layout!.x;
-                const anchorY = anchorInstance.layout!.y;
+                    const activeId = activeInGroup[groupId] || defaultActive;
+                    const activeInstance = instances[activeId];
+                    if (!activeInstance || !activeInstance.layout) return null;
 
-                const isStacked = instanceIds.length > 1;
+                    // Compute Stable Anchor: choose the widget with smallest y, if tie, smallest x
+                    const anchorInstance = instanceIds
+                        .map((id: string) => instances[id])
+                        .filter((inst): inst is WidgetInstance => !!inst && !!inst.layout)
+                        .reduce((best: WidgetInstance, curr: WidgetInstance) => {
+                            if (!best) return curr;
+                            if (curr.layout!.y < best.layout!.y) return curr;
+                            if (curr.layout!.y === best.layout!.y && curr.layout!.x < best.layout!.x) return curr;
+                            return best;
+                        });
 
-                // For stacked view, sort background cards by height descending
-                const backgroundIds = instanceIds
-                    .filter(id => id !== activeId)
-                    .sort((a, b) => (instances[b]?.layout?.h || 0) - (instances[a]?.layout?.h || 0));
+                    const anchorX = anchorInstance.layout!.x;
+                    const anchorY = anchorInstance.layout!.y;
 
-                const definition = registryMap.get(activeInstance.type);
-                const Component = definition?.component || ((props: any) => <div className="p-4 text-xs italic opacity-40">Unknown {props.instance.type}</div>);
+                    const isStacked = instanceIds.length > 1;
 
-                const dir = cycleDirection[groupId] || 1;
+                    // For stacked view, sort background cards by height descending
+                    const backgroundIds = instanceIds
+                        .filter(id => id !== activeId)
+                        .sort((a, b) => (instances[b]?.layout?.h || 0) - (instances[a]?.layout?.h || 0));
 
-                const groupLocked = !!lockedGroups[groupId];
-                const instanceLocked = !!activeInstance.isLocked;
-                const lockedFinal = groupLocked || instanceLocked;
+                    const definition = registryMap.get(activeInstance.type);
+                    const Component = definition?.component || ((props: any) => <div className="p-4 text-xs italic opacity-40">Unknown {props.instance.type}</div>);
 
-                // Rects for OTHER widgets (exclude all members of this group for alignment)
-                const groupMemberIds = new Set(instanceIds);
-                const otherRects = widgetRects.filter(r => !groupMemberIds.has(r.id));
+                    const dir = cycleDirection[groupId] || 1;
 
-                return (
-                    <Fragment key={groupId}>
-                        {/* ── Background Stack Layers ── */}
-                        {isStacked && backgroundIds.map((bgId, i) => {
-                            const inst = instances[bgId];
-                            const def = registryMap.get(inst.type);
-                            if (!inst || !inst.layout || !def) return null;
+                    const groupLocked = !!lockedGroups[groupId];
+                    const instanceLocked = !!activeInstance.isLocked;
+                    const lockedFinal = groupLocked || instanceLocked;
 
-                            const offsetX = STACK_OFFSET_X * (i + 1);
-                            const offsetY = STACK_OFFSET_Y * (i + 1);
-                            const scale = Math.max(STACK_MIN_SCALE, 1 - (i + 1) * STACK_SCALE_STEP);
-                            const opacity = Math.max(0.35, 0.75 - i * 0.15);
-                            const blur = 1 + i * 0.5;
+                    // Rects for OTHER widgets (exclude all members of this group for alignment)
+                    const groupMemberIds = new Set(instanceIds);
+                    const otherRects = widgetRects.filter(r => !groupMemberIds.has(r.id));
 
-                            return (
-                                <div
-                                    key={`prev-${bgId}`}
-                                    className="absolute pointer-events-none"
-                                    style={{
-                                        left: anchorX + offsetX,
-                                        top: anchorY + offsetY,
-                                        width: activeInstance.layout!.w,
-                                        height: activeInstance.layout!.h,
-                                        transform: `scale(${scale})`,
-                                        opacity: opacity,
-                                        filter: `blur(${blur}px)`,
-                                        zIndex: 10 + i
-                                    }}
-                                >
-                                    <WidgetStackPreview definition={def} title={inst.title || def.defaultTitle} />
-                                </div>
-                            );
-                        })}
+                    return (
+                        <Fragment key={groupId}>
+                            {/* ── Background Stack Layers ── */}
+                            {isStacked && backgroundIds.map((bgId, i) => {
+                                const inst = instances[bgId];
+                                const def = registryMap.get(inst.type);
+                                if (!inst || !inst.layout || !def) return null;
 
-                        {/* ── Active Widget ── */}
-                        <Rnd
-                            bounds={canvasRef.current || 'parent'}
-                            size={{ width: activeInstance.layout.w, height: activeInstance.layout.h }}
-                            position={{ x: anchorX, y: anchorY }}
-                            disableDragging={!dashboardEditMode || lockedFinal}
-                            enableResizing={dashboardEditMode && !lockedFinal ? {
-                                bottom: true,
-                                bottomRight: true,
-                                right: true,
-                                top: false,
-                                topLeft: false,
-                                topRight: false,
-                                left: false,
-                                bottomLeft: false,
-                            } : false}
-                            dragHandleClassName="tbb-drag-handle"
-                            minWidth={280}
-                            minHeight={180}
-                            onDrag={(e, d) => {
-                                const w = activeInstance.layout!.w;
-                                const h = activeInstance.layout!.h;
-                                const activeRect: WidgetRect = {
-                                    id: activeId,
-                                    left: d.x,
-                                    top: d.y,
-                                    right: d.x + w,
-                                    bottom: d.y + h,
-                                    centerX: d.x + w / 2,
-                                    centerY: d.y + h / 2,
-                                    w,
-                                    h,
-                                };
-                                const result = computeDragAlignment(activeRect, otherRects);
-                                setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
-                                setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
-                                // Auto-scroll: use pointer Y against viewport edges
-                                if (dashboardEditMode) {
-                                    const mouseY = (e as MouseEvent).clientY;
-                                    const distTop = mouseY;
-                                    const distBottom = window.innerHeight - mouseY;
-                                    if (distTop < SCROLL_EDGE_THRESHOLD) {
-                                        startAutoScroll("up");
-                                    } else if (distBottom < SCROLL_EDGE_THRESHOLD) {
-                                        startAutoScroll("down");
-                                    } else {
-                                        stopAutoScroll();
-                                    }
-                                }
-                            }}
-                            onDragStop={(e, d) => {
-                                const w = activeInstance.layout!.w;
-                                const h = activeInstance.layout!.h;
-                                const activeRect: WidgetRect = {
-                                    id: activeId,
-                                    left: d.x,
-                                    top: d.y,
-                                    right: d.x + w,
-                                    bottom: d.y + h,
-                                    centerX: d.x + w / 2,
-                                    centerY: d.y + h / 2,
-                                    w,
-                                    h,
-                                };
-                                // Step 1: Extract current active layout
-                                const oldX = activeInstance.layout!.x;
-                                const oldY = activeInstance.layout!.y;
+                                const offsetX = STACK_OFFSET_X * (i + 1);
+                                const offsetY = STACK_OFFSET_Y * (i + 1);
+                                const scale = Math.max(STACK_MIN_SCALE, 1 - (i + 1) * STACK_SCALE_STEP);
+                                const opacity = Math.max(0.35, 0.75 - i * 0.15);
+                                const blur = 1 + i * 0.5;
 
-                                // Step 2: Snap only the dropped position of the active widget
-                                const snappedNewX = snap(d.x);
-                                const snappedNewY = snap(d.y);
-
-                                // Step 3: Compute translation delta safely
-                                const dx = snappedNewX - oldX;
-                                const dy = snappedNewY - oldY;
-
-                                // Step 4: Apply translation to all widgets in the group WITHOUT snapping
-                                if (isStacked) {
-                                    instanceIds.forEach((id) => {
-                                        const inst = instances[id];
-                                        if (!inst?.layout) return;
-
-                                        updateInstanceLayout(id, {
-                                            x: Math.max(0, inst.layout.x + dx),
-                                            y: Math.max(0, inst.layout.y + dy),
-                                        });
-                                    });
-                                }
-
-                                // Step 5: Force active widget to exact snapped position
-                                // (This guarantees alignment even if not stacked)
-                                updateInstanceLayout(activeId, {
-                                    x: Math.max(0, snappedNewX),
-                                    y: Math.max(0, snappedNewY),
-                                });
-
-                                clearGuides();
-                                stopAutoScroll();
-                            }}
-                            onResize={(e, direction, ref, delta, pos) => {
-                                const newW = ref.offsetWidth;
-                                const newH = ref.offsetHeight;
-                                const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
-                                setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
-                                setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
-                            }}
-                            onResizeStop={(e, direction, ref, delta, pos) => {
-                                const newW = ref.offsetWidth;
-                                const newH = ref.offsetHeight;
-                                const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
-                                updateInstanceLayout(activeId, {
-                                    w: snap(result.snappedW),
-                                    h: snap(result.snappedH),
-                                    x: snap(pos.x),
-                                    y: snap(pos.y),
-                                });
-                                clearGuides();
-                            }}
-                            style={{
-                                zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
-                            }}
-                            className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''}`}
-                        >
-                            <AnimatePresence mode="wait" initial={false} custom={dir}>
-                                <motion.div
-                                    key={activeId}
-                                    custom={dir}
-                                    variants={slideVariants}
-                                    initial="initial"
-                                    animate="animate"
-                                    exit="exit"
-                                    className="h-full w-full"
-                                >
-                                    <WidgetCard
-                                        instance={activeInstance}
-                                        definition={definition || {} as any}
-                                        stackCount={instanceIds.length}
-                                        groupId={groupId}
-                                        groupLocked={groupLocked}
-                                        onToggleGroupLock={toggleGroupLock}
-                                        onCycleStack={handleCycleStack}
-                                        onExpandStack={() => setExpandedGroupId(groupId)}
-                                        onUnlinkFromStack={handleUnlinkFromStack}
-                                        onRelinkToStacks={relinkToStacks}
+                                return (
+                                    <div
+                                        key={`prev-${bgId}`}
+                                        className="absolute pointer-events-none"
+                                        style={{
+                                            left: anchorX + offsetX,
+                                            top: anchorY + offsetY,
+                                            width: activeInstance.layout!.w,
+                                            height: activeInstance.layout!.h,
+                                            transform: `scale(${scale})`,
+                                            opacity: opacity,
+                                            filter: `blur(${blur}px)`,
+                                            zIndex: 10 + i
+                                        }}
                                     >
-                                        {activeInstance.type === "projects_overview" ? (
-                                            <ProjectsOverviewWidget instance={activeInstance} onNavigate={onNavigate} />
-                                        ) : (
-                                            <Component instance={activeInstance} />
-                                        )}
-                                    </WidgetCard>
-                                </motion.div>
-                            </AnimatePresence>
-                        </Rnd>
-                    </Fragment>
-                );
-            })}
+                                        <WidgetStackPreview definition={def} title={inst.title || def.defaultTitle} />
+                                    </div>
+                                );
+                            })}
 
-            {/* Stack Expansion Modal */}
-            <StackExpandModal
-                isOpen={!!expandedGroupId}
-                groupId={expandedGroupId}
-                instances={expandedGroupId ? (groups.find(g => g.groupId === expandedGroupId)?.instanceIds.map((id: string) => instances[id]).filter(Boolean) as WidgetInstance[]) : []}
-                activeId={expandedGroupId ? (activeInGroup[expandedGroupId] || groups.find(g => g.groupId === expandedGroupId)?.instanceIds[0] || "") : ""}
-                onSelect={(instanceId: string) => handleSetActiveInGroup(expandedGroupId!, instanceId)}
-                onClose={() => setExpandedGroupId(null)}
-            />
+                            {/* ── Active Widget ── */}
+                            <Rnd
+                                bounds={undefined} // Remove parent bounds for infinite canvas
+                                size={{ width: activeInstance.layout.w, height: activeInstance.layout.h }}
+                                position={{
+                                    x: animatedLayoutOverrides[activeId]?.x ?? activeInstance.layout.x, // V4.7: Use activeInstance layout instead of anchor
+                                    y: animatedLayoutOverrides[activeId]?.y ?? activeInstance.layout.y // V4.7: Use activeInstance layout instead of anchor
+                                }}
+                                disableDragging={!dashboardEditMode || lockedFinal}
+                                enableResizing={dashboardEditMode && !lockedFinal ? {
+                                    bottom: true,
+                                    bottomRight: true,
+                                    right: true,
+                                    top: false,
+                                    topLeft: false,
+                                    topRight: false,
+                                    left: false,
+                                    bottomLeft: false,
+                                } : false}
+                                dragHandleClassName="tbb-drag-handle"
+                                minWidth={280}
+                                minHeight={180}
+                                onDragStart={() => {
+                                    if (scrollRef.current) {
+                                        dragScrollStartRef.current = {
+                                            left: scrollRef.current.scrollLeft,
+                                            top: scrollRef.current.scrollTop
+                                        };
+                                    }
+
+                                    // V4.7: Capture Drag Offset in Surface Coordinates
+                                    const p = getSurfacePointer();
+                                    dragOffsetRef.current = {
+                                        x: p.x - activeInstance.layout!.x,
+                                        y: p.y - activeInstance.layout!.y,
+                                    };
+
+                                    startAutoScroll();
+                                }}
+                                onDrag={(e, d) => {
+                                    // V4.4: Explicit pointer update from Drag Event
+                                    if ("clientX" in e && "clientY" in e) {
+                                        pointerRef.current = { x: e.clientX, y: e.clientY };
+                                    }
+
+                                    // V4.8 Debug: Check horizontal scroll
+                                    if (scrollRef.current) {
+                                        // console.log("Drag ScrollLeft:", scrollRef.current.scrollLeft);
+                                    }
+
+                                    const w = activeInstance.layout!.w;
+                                    const h = activeInstance.layout!.h;
+
+                                    // V4.7: Compute Real Y From Pointer (Ignore d.y)
+                                    // V5.0: Lock X-Axis Drag
+                                    // V4.7: Compute Real X/Y From Pointer (Ignore d.x/d.y)
+                                    // V5.1: Relaxed Lock - Allow X drag but clamp to surface width
+                                    const p = getSurfacePointer();
+
+                                    // 1. Calculate raw position from pointer
+                                    let rawX = p.x - dragOffsetRef.current.x;
+                                    const rawY = p.y - dragOffsetRef.current.y;
+
+                                    // 2. Clamp X to current surface width (prevent expansion)
+                                    // Use surfaceRef.current.clientWidth if available for most up-to-date width
+                                    const maxW = surfaceRef.current?.clientWidth || surfaceSize.w;
+                                    rawX = Math.max(0, Math.min(rawX, maxW - w));
+
+                                    const snappedX = snap(rawX);
+                                    const snappedY = snap(rawY);
+
+                                    const activeRect: WidgetRect = {
+                                        id: activeId,
+                                        left: snappedX,
+                                        top: snappedY,
+                                        right: snappedX + w,
+                                        bottom: snappedY + h,
+                                        centerX: snappedX + w / 2,
+                                        centerY: snappedY + h / 2,
+                                        w,
+                                        h,
+                                    };
+                                    const result = computeDragAlignment(activeRect, otherRects);
+                                    setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
+                                    setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
+
+                                    // ── Live Bounds for Dynamic Expansion ──
+                                    // Use raw/snapped coords instead of d.x/d.y
+                                    // V5.0: Only expand bottom
+                                    // V5.1: X is clamped, so we don't need to track maxRight for expansion
+                                    const bottom = rawY + h;
+
+                                    liveBoundsRef.current = {
+                                        maxRight: 0,
+                                        maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
+                                    };
+
+                                    const PAD_Y = 220;
+                                    const neededH = Math.max(viewport.h, bottom + PAD_Y);
+
+                                    const needsResize = neededH > surfaceSize.h;
+                                    if (needsResize) {
+                                        safeSetSurfaceSize({
+                                            w: 0, // ignored
+                                            h: Math.max(surfaceSize.h, neededH)
+                                        });
+                                    }
+                                }}
+                                onDragStop={(e, d) => {
+                                    stopAutoScroll();
+                                    liveBoundsRef.current = { maxRight: 0, maxBottom: 0 }; // Reset
+
+                                    const w = activeInstance.layout!.w;
+                                    const h = activeInstance.layout!.h;
+
+                                    // Step 1: Extract current active layout
+                                    const oldX = activeInstance.layout!.x;
+                                    const oldY = activeInstance.layout!.y;
+
+                                    // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
+                                    // V5.0: Lock X
+                                    // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
+                                    // V5.1: Allow X change, clamp to surface
+                                    const p = getSurfacePointer();
+
+                                    let rawX = p.x - dragOffsetRef.current.x;
+                                    const rawY = p.y - dragOffsetRef.current.y;
+
+                                    // Clamp X
+                                    const maxW = surfaceRef.current?.clientWidth || surfaceSize.w;
+                                    rawX = Math.max(0, Math.min(rawX, maxW - w));
+
+                                    const finalX = Math.max(0, snap(rawX));
+                                    const finalY = Math.max(0, snap(rawY));
+
+                                    // Step 3: Compute translation delta safely
+                                    const dx = finalX - oldX;
+                                    const dy = finalY - oldY;
+
+                                    // Step 4: Apply translation to all widgets in the group WITHOUT snapping
+                                    if (isStacked) {
+                                        instanceIds.forEach((id) => {
+                                            const inst = instances[id];
+                                            if (!inst?.layout) return;
+
+                                            updateInstanceLayout(id, {
+                                                x: Math.max(0, inst.layout.x + dx),
+                                                y: Math.max(0, inst.layout.y + dy),
+                                            });
+                                        });
+                                    }
+
+                                    // Step 5: Force active widget to exact snapped position
+                                    updateInstanceLayout(activeId, {
+                                        x: finalX,
+                                        y: finalY,
+                                    });
+
+                                    // ── Inertia Animation ──
+                                    // 1. Set override to current drag position (unsnapped)
+                                    setAnimatedLayoutOverrides(prev => ({
+                                        ...prev,
+                                        [activeId]: { x: rawX, y: rawY, w: activeInstance.layout!.w, h: activeInstance.layout!.h }
+                                    }));
+
+                                    // 2. Animate to snapped position
+                                    const start = { x: rawX, y: rawY };
+                                    const end = { x: finalX, y: finalY };
+
+                                    let velocity = { x: 0, y: 0 };
+                                    let current = { ...start };
+                                    const stiffness = 0.2; // 0.2
+                                    const damping = 0.8; // 0.8
+                                    const precision = 0.5;
+
+                                    const animate = () => {
+                                        const forceX = (end.x - current.x) * stiffness;
+                                        const forceY = (end.y - current.y) * stiffness;
+
+                                        velocity.x = (velocity.x + forceX) * damping;
+                                        velocity.y = (velocity.y + forceY) * damping;
+
+                                        current.x += velocity.x;
+                                        current.y += velocity.y;
+
+                                        // Check stop condition
+                                        if (
+                                            Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
+                                            Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision
+                                        ) {
+                                            setAnimatedLayoutOverrides(prev => {
+                                                const next = { ...prev };
+                                                delete next[activeId];
+                                                return next;
+                                            });
+                                            return;
+                                        }
+
+                                        setAnimatedLayoutOverrides(prev => ({
+                                            ...prev,
+                                            [activeId]: { ...prev[activeId]!, x: current.x, y: current.y }
+                                        }));
+                                        requestAnimationFrame(animate);
+                                    };
+                                    requestAnimationFrame(animate);
+
+                                    clearGuides();
+
+                                    // V4.6: Force scroll restoration after Rnd cleanup
+                                    requestAnimationFrame(() => {
+                                        if (!scrollRef.current) return;
+                                        // V5.0: Only restore scrollTop, scrollLeft is always 0
+                                        scrollRef.current.scrollTop = dragScrollStartRef.current.top + scrollCompRef.current.dy;
+                                        // Reset compensation
+                                        scrollCompRef.current = { dx: 0, dy: 0 };
+                                    });
+                                }}
+                                onResizeStart={() => startAutoScroll()}
+                                onResize={(e, direction, ref, delta, pos) => {
+                                    // V4.4: Explicit pointer update from Resize Event
+                                    if ("clientX" in e && "clientY" in e) {
+                                        pointerRef.current = { x: e.clientX, y: e.clientY };
+                                    }
+
+                                    const newW = ref.offsetWidth;
+                                    const newH = ref.offsetHeight;
+                                    const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
+                                    setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
+                                    setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
+
+                                    const w = ref.offsetWidth;
+                                    const h = ref.offsetHeight;
+                                    const right = pos.x + w;
+                                    const bottom = pos.y + h;
+
+                                    liveBoundsRef.current = {
+                                        maxRight: Math.max(liveBoundsRef.current.maxRight, right),
+                                        maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
+                                    };
+
+                                    const PAD_X = 140;
+                                    const PAD_Y = 220;
+                                    const neededW = Math.max(viewport.w, right + PAD_X);
+                                    const neededH = Math.max(viewport.h, bottom + PAD_Y);
+
+                                    const needsResize = neededW > surfaceSize.w || neededH > surfaceSize.h;
+                                    if (needsResize) {
+                                        safeSetSurfaceSize({
+                                            w: Math.max(surfaceSize.w, neededW),
+                                            h: Math.max(surfaceSize.h, neededH)
+                                        });
+                                    }
+                                }}
+                                onResizeStop={(e, direction, ref, delta, pos) => {
+                                    stopAutoScroll();
+                                    liveBoundsRef.current = { maxRight: 0, maxBottom: 0 };
+
+                                    const newW = ref.offsetWidth;
+                                    const newH = ref.offsetHeight;
+                                    const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
+                                    const finalW = snap(result.snappedW);
+                                    const finalH = snap(result.snappedH);
+                                    const finalX = snap(pos.x);
+                                    const finalY = snap(pos.y);
+
+                                    updateInstanceLayout(activeId, {
+                                        w: finalW,
+                                        h: finalH,
+                                        x: finalX,
+                                        y: finalY,
+                                    });
+
+                                    // ── Inertia Animation (Resize) ──
+                                    setAnimatedLayoutOverrides(prev => ({
+                                        ...prev,
+                                        [activeId]: { x: pos.x, y: pos.y, w: newW, h: newH }
+                                    }));
+
+                                    const start = { x: pos.x, y: pos.y, w: newW, h: newH };
+                                    const end = { x: finalX, y: finalY, w: finalW, h: finalH };
+
+                                    let velocity = { x: 0, y: 0, w: 0, h: 0 };
+                                    let current = { ...start };
+                                    const stiffness = 0.2;
+                                    const damping = 0.8;
+                                    const precision = 0.5;
+
+                                    const animate = () => {
+                                        const forceX = (end.x - current.x) * stiffness;
+                                        const forceY = (end.y - current.y) * stiffness;
+                                        const forceW = (end.w - current.w) * stiffness;
+                                        const forceH = (end.h - current.h) * stiffness;
+
+                                        velocity.x = (velocity.x + forceX) * damping;
+                                        velocity.y = (velocity.y + forceY) * damping;
+                                        velocity.w = (velocity.w + forceW) * damping;
+                                        velocity.h = (velocity.h + forceH) * damping;
+
+                                        current.x += velocity.x;
+                                        current.y += velocity.y;
+                                        current.w += velocity.w;
+                                        current.h += velocity.h;
+
+                                        if (
+                                            Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
+                                            Math.abs(velocity.w) < 0.1 && Math.abs(velocity.h) < 0.1 &&
+                                            Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision &&
+                                            Math.abs(end.w - current.w) < precision && Math.abs(end.h - current.h) < precision
+                                        ) {
+                                            setAnimatedLayoutOverrides(prev => {
+                                                const next = { ...prev };
+                                                delete next[activeId];
+                                                return next;
+                                            });
+                                            return;
+                                        }
+
+                                        setAnimatedLayoutOverrides(prev => ({
+                                            ...prev,
+                                            [activeId]: { x: current.x, y: current.y, w: current.w, h: current.h }
+                                        }));
+                                        requestAnimationFrame(animate);
+                                    };
+                                    requestAnimationFrame(animate);
+
+                                    clearGuides();
+                                }}
+                                style={{
+                                    zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
+                                }}
+                                className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''}`}
+                            >
+                                <AnimatePresence mode="wait" initial={false} custom={dir}>
+                                    <motion.div
+                                        key={activeId}
+                                        custom={dir}
+                                        variants={slideVariants}
+                                        initial="initial"
+                                        animate="animate"
+                                        exit="exit"
+                                        className="h-full w-full"
+                                    >
+                                        <WidgetCard
+                                            instance={activeInstance}
+                                            definition={definition || {} as any}
+                                            stackCount={instanceIds.length}
+                                            groupId={groupId}
+                                            groupLocked={groupLocked}
+                                            onToggleGroupLock={toggleGroupLock}
+                                            onCycleStack={handleCycleStack}
+                                            onExpandStack={() => setExpandedGroupId(groupId)}
+                                            onUnlinkFromStack={handleUnlinkFromStack}
+                                            onRelinkToStacks={relinkToStacks}
+                                        >
+                                            {activeInstance.type === "projects_overview" ? (
+                                                <ProjectsOverviewWidget instance={activeInstance} onNavigate={onNavigate} />
+                                            ) : (
+                                                <Component instance={activeInstance} />
+                                            )}
+                                        </WidgetCard>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </Rnd>
+                        </Fragment>
+                    );
+                })}
+
+                {/* Stack Expansion Modal */}
+                <StackExpandModal
+                    isOpen={!!expandedGroupId}
+                    groupId={expandedGroupId}
+                    instances={expandedGroupId ? (groups.find(g => g.groupId === expandedGroupId)?.instanceIds.map((id: string) => instances[id]).filter(Boolean) as WidgetInstance[]) : []}
+                    activeId={expandedGroupId ? (activeInGroup[expandedGroupId] || groups.find(g => g.groupId === expandedGroupId)?.instanceIds[0] || "") : ""}
+                    onSelect={(instanceId: string) => handleSetActiveInGroup(expandedGroupId!, instanceId)}
+                    onClose={() => setExpandedGroupId(null)}
+                />
+            </div>
         </div>
     );
 }

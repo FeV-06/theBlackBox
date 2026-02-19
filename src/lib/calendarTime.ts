@@ -21,6 +21,7 @@ export interface CalendarEvent {
     startTimeZone: string; // IANA timezone
     endTimeZone: string;   // IANA timezone
     colorId?: string;      // Google Calendar colorId
+    location?: string;
 }
 
 /** Detect all-day event (date-only string is exactly 10 chars: "YYYY-MM-DD") */
@@ -57,42 +58,37 @@ export function extractTimeHHMM(isoString: string, timeZone: string): string {
 }
 
 /**
- * Build an ISO datetime string with explicit timezone offset,
- * suitable for sending to the Google Calendar API.
+ * Build a local ISO datetime string (YYYY-MM-DDTHH:mm:ss)
+ * explicitely WITHOUT timezone offset.
  *
- * Takes a date (YYYY-MM-DD) and time (HH:mm) and a timezone,
- * and returns an ISO string like "2026-02-18T15:00:00+05:30".
- *
- * We use the browser's Intl to compute the correct UTC offset
- * for the given timezone at the given date/time.
+ * This is crucial for Google Calendar API to interpret the time
+ * in the accompanying `timeZone` field, rather than converting from UTC.
  */
-export function buildDateTimeISO(date: string, time: string, timeZone: string): string {
-    // Create a Date object interpreted in the target timezone
-    // by formatting then computing offset
-    const naive = new Date(`${date}T${time}:00`);
-    const utcMs = naive.getTime();
-
-    // Get the offset for this timezone at this moment
-    const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone,
-        timeZoneName: "shortOffset",
-    });
-    const parts = formatter.formatToParts(new Date(utcMs));
-    const tzPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
-
-    // Parse offset like "GMT+5:30" -> "+05:30"
-    const offsetStr = parseGMTOffset(tzPart);
-    return `${date}T${time}:00${offsetStr}`;
+export function combineLocalDateTime(date: string, time: string): string {
+    // Ensure inputs are clean
+    if (!time) time = "00:00";
+    if (time.length === 5) time += ":00"; // HH:mm -> HH:mm:00
+    return `${date}T${time}`;
 }
 
-function parseGMTOffset(gmt: string): string {
-    // Handles: "GMT", "GMT+5:30", "GMT-8", "GMT+12:45"
-    const match = gmt.match(/GMT([+-]?)(\d{1,2})(?::(\d{2}))?/);
-    if (!match) return "+00:00";
-    const sign = match[1] || "+";
-    const hours = match[2].padStart(2, "0");
-    const mins = match[3] ?? "00";
-    return `${sign}${hours}:${mins}`;
+/**
+ * Extract HH:mm from an ISO string, ensuring we get the LOCAL time
+ * relative to the event's timezone, not the browser's timezone.
+ *
+ * Handles:
+ * - "2026-02-19T09:00:00" (Local)
+ * - "2026-02-19T09:00:00+05:30" (Offset)
+ * - "2026-02-19T03:30:00Z" (UTC)
+ */
+export function extractLocalTime(isoString: string, timeZone: string): string {
+    if (isoString.length <= 10) return "09:00"; // Fallback for date-only
+
+    try {
+        return formatInTimeZone(isoString, timeZone, "HH:mm");
+    } catch (e) {
+        console.error("Failed to extract local time:", e);
+        return "09:00";
+    }
 }
 
 /**
@@ -105,3 +101,4 @@ export function getBrowserTimeZone(): string {
         return "Asia/Kolkata";
     }
 }
+

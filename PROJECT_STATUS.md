@@ -73,6 +73,7 @@
 - Color-coded event dots and bars (Google `colorId` mapping)
 - Sticky "Editing Event" context banner
 - Explicit "Move Event To" feature (prevents accidental date shifts)
+- Timezone serialization bug fixed (no UTC conversion corruption).
 
 ### ✅ OAuth Security
 - Popup-based Google OAuth flow

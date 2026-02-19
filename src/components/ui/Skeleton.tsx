@@ -19,12 +19,11 @@ export function Skeleton({
 }: SkeletonProps) {
     return (
         <div
-            className={`animate-pulse ${className}`}
+            className={`tbb-skeleton ${className}`}
             style={{
                 width,
                 height,
                 borderRadius: rounded,
-                background: "rgba(255,255,255,0.06)",
             }}
         />
     );

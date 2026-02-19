@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Github, Star, GitFork, AlertCircle, GitCommit, RefreshCw } from "lucide-react";
 import type { WidgetInstance } from "@/types/widgetInstance";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface RepoData {
     full_name: string;
@@ -115,6 +116,22 @@ export default function GitHubWidget({ instance }: { instance: WidgetInstance })
                 <p className="text-xs text-center py-4" style={{ color: "var(--color-text-muted)" }}>
                     Enter owner/repo and press Enter
                 </p>
+            )}
+
+            {loading && !repoData && (
+                <div className="flex flex-col gap-4">
+                    <div className="flex gap-4">
+                        <Skeleton width="50px" height="14px" />
+                        <Skeleton width="50px" height="14px" />
+                        <Skeleton width="50px" height="14px" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <Skeleton width="80px" height="12px" className="mb-1" />
+                        <Skeleton width="100%" height="12px" />
+                        <Skeleton width="90%" height="12px" />
+                        <Skeleton width="95%" height="12px" />
+                    </div>
+                </div>
             )}
         </div>
     );

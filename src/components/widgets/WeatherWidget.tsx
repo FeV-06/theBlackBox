@@ -9,6 +9,7 @@ import {
     Search,
     Loader2,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { WidgetInstance } from "@/types/widgetInstance";
 
 interface WeatherData {
@@ -133,6 +134,23 @@ export default function WeatherWidget({ instance }: { instance: WidgetInstance }
                 <p className="text-xs text-center py-4" style={{ color: "var(--color-text-muted)" }}>
                     Search for a city to see weather
                 </p>
+            )}
+
+            {loading && !weather && (
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Skeleton width="100px" height="14px" className="mb-2" />
+                            <Skeleton width="80px" height="36px" rounded="8px" />
+                        </div>
+                        <Skeleton width="36px" height="36px" rounded="50%" />
+                    </div>
+                    <Skeleton width="60%" height="14px" />
+                    <div className="flex gap-4">
+                        <Skeleton width="60px" height="12px" />
+                        <Skeleton width="60px" height="12px" />
+                    </div>
+                </div>
             )}
         </div>
     );

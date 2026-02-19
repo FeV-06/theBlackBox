@@ -5,6 +5,8 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 import { Puzzle, Plus, Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import type { ApiWidgetInstance } from "@/types/widget";
 import type { WidgetInstance } from "@/types/widgetInstance";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { PortalSelect } from "@/components/ui/PortalSelect";
 
 const TEMPLATES = [
     { name: "GitHub Repo Stats", template: "github", url: "https://api.github.com/repos/{owner}/{repo}" },
@@ -75,6 +77,14 @@ function ApiWidgetCard({ instance }: { instance: ApiWidgetInstance }) {
 
             {error && <p className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</p>}
 
+            {loading && !data && !error && (
+                <div className="flex flex-col gap-2">
+                    <Skeleton height="12px" width="100%" />
+                    <Skeleton height="12px" width="90%" />
+                    <Skeleton height="12px" width="40%" />
+                </div>
+            )}
+
             {data ? (
                 <pre
                     className="text-xs overflow-auto rounded-lg p-2"
@@ -129,21 +139,20 @@ export default function CustomApiWidget({ instance }: { instance: WidgetInstance
             {/* Add form */}
             {showAdd ? (
                 <div className="flex flex-col gap-2 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)" }}>
-                    <select
-                        value={selectedTemplate}
-                        onChange={(e) => {
-                            const idx = Number(e.target.value);
+                    <PortalSelect
+                        value={String(selectedTemplate)}
+                        onChange={(val) => {
+                            const idx = Number(val);
                             setSelectedTemplate(idx);
                             setUrl(TEMPLATES[idx].url);
                             setName(TEMPLATES[idx].name);
                         }}
-                        className="bg-white/[0.03] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-xs outline-none"
-                        style={{ color: "var(--color-text-primary)" }}
-                    >
-                        {TEMPLATES.map((t, i) => (
-                            <option key={t.template} value={i} style={{ background: "#1B1B22" }}>{t.name}</option>
-                        ))}
-                    </select>
+                        options={TEMPLATES.map((t, i) => ({
+                            label: t.name,
+                            value: String(i),
+                        }))}
+                        className="w-full"
+                    />
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}

@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
             startTimeZone: e.start?.timeZone ?? calendarTz,
             endTimeZone: e.end?.timeZone ?? calendarTz,
             colorId: e.colorId ?? undefined,
+            location: e.location ?? undefined,
         }));
 
         const res = NextResponse.json({ events });
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/google/calendar/events
  * Create a new calendar event.
- * Body: { summary, description?, start, end, timeZone }
+ * Body: { summary, description?, start, end, timeZone, location? }
  * start/end should be ISO datetime strings WITH offset.
  * timeZone is the IANA timezone (e.g. "Asia/Kolkata").
  */
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { summary, description, start, end, timeZone, colorId } = body;
+        const { summary, description, start, end, timeZone, colorId, location } = body;
 
         if (!summary || !start || !end) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
             requestBody: {
                 summary,
                 description: description ?? "",
+                location: location ?? "",
                 start: { dateTime: start, timeZone: tz },
                 end: { dateTime: end, timeZone: tz },
                 ...(colorId ? { colorId } : {}),
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
                 id: data.id,
                 summary: data.summary ?? "",
                 description: data.description ?? "",
+                location: data.location ?? "",
                 start: data.start?.dateTime ?? data.start?.date ?? "",
                 end: data.end?.dateTime ?? data.end?.date ?? "",
                 startTimeZone: data.start?.timeZone ?? tz,

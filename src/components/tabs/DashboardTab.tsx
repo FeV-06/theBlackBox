@@ -65,6 +65,13 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
                                 Layout Edit Mode
                             </span>
                             <button
+                                onClick={() => useWidgetStore.getState().autoArrangeInstances()}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/20 hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] text-purple-300"
+                                title="Auto Arrange Widgets"
+                            >
+                                Auto Arrange
+                            </button>
+                            <button
                                 onClick={undo}
                                 disabled={!hasPast}
                                 className="p-2 rounded-lg transition-all duration-200 border border-white/10 hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed"
@@ -106,7 +113,7 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto rounded-3xl bg-black/5 border border-white/5">
+            <div className="flex-1 min-w-0 overflow-auto rounded-3xl bg-black/5 border border-white/5">
                 <WidgetCanvas onNavigate={onNavigate} />
             </div>
         </div>

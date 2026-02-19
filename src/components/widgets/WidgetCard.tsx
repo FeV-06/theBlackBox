@@ -4,6 +4,7 @@ import { ReactNode, useState, useRef, useEffect, MouseEvent as ReactMouseEvent }
 import { motion, AnimatePresence } from "framer-motion";
 import { GripVertical, MoreVertical, Pencil, Copy, Trash2, Check, X, Lock, Unlock, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
+import { PortalMenu } from "@/components/ui/PortalMenu";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import type { WidgetInstance, WidgetTypeDefinition } from "@/types/widgetInstance";
 
@@ -49,17 +50,7 @@ export default function WidgetCard({
     const title = instance.title ?? definition.defaultTitle;
     const Icon = definition.icon;
 
-    // Close menu on outside click
-    useEffect(() => {
-        if (!menuOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setMenuOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, [menuOpen]);
+
 
     // Auto-focus rename input
     useEffect(() => {
@@ -192,33 +183,22 @@ export default function WidgetCard({
                         </button>
                     )}
 
-                    <button
-                        onClick={(e: ReactMouseEvent) => {
-                            e.stopPropagation();
-                            setMenuOpen((v) => !v);
-                        }}
-                        className={`p-1 rounded-lg transition-colors ${dashboardEditMode ? "hover:bg-purple-500/20 text-purple-300" : "hover:bg-white/5 text-white/40"
-                            }`}
+                    <PortalMenu
+                        trigger={
+                            <div
+                                className={`p-1 rounded-lg transition-colors ${dashboardEditMode ? "hover:bg-purple-500/20 text-purple-300" : "hover:bg-white/5 text-white/40"
+                                    }`}
+                            >
+                                <MoreVertical size={14} />
+                            </div>
+                        }
                     >
-                        <MoreVertical size={14} />
-                    </button>
-
-                    {menuOpen && (
-                        <div
-                            className="absolute right-0 top-full mt-2 rounded-xl py-1 z-[100] min-w-[140px]"
-                            style={{
-                                background: "rgba(20,20,26,0.98)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-                                backdropFilter: "blur(16px)",
-                            }}
-                        >
+                        <div className="min-w-[140px]">
                             {stackCount > 1 && onExpandStack && groupId && (
                                 <>
                                     <button
                                         onClick={() => {
                                             onExpandStack(groupId);
-                                            setMenuOpen(false);
                                         }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors font-semibold"
                                         style={{ color: "var(--color-accent)" }}
@@ -230,7 +210,6 @@ export default function WidgetCard({
                                         <button
                                             onClick={() => {
                                                 onUnlinkFromStack(groupId, instance.instanceId);
-                                                setMenuOpen(false);
                                             }}
                                             className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors text-red-400 hover:text-red-300"
                                         >
@@ -248,7 +227,6 @@ export default function WidgetCard({
                                     <button
                                         onClick={() => {
                                             onRelinkToStacks(instance.instanceId);
-                                            setMenuOpen(false);
                                         }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors text-green-400 hover:text-green-300"
                                     >
@@ -276,28 +254,28 @@ export default function WidgetCard({
                                 <>
                                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "2px 0" }} />
                                     <button
-                                        onClick={() => { bringToFront(instance.instanceId); setMenuOpen(false); }}
+                                        onClick={() => { bringToFront(instance.instanceId); }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors"
                                         style={{ color: "var(--color-text-secondary)" }}
                                     >
                                         <ArrowUpToLine size={12} /> Bring to Front
                                     </button>
                                     <button
-                                        onClick={() => { sendToBack(instance.instanceId); setMenuOpen(false); }}
+                                        onClick={() => { sendToBack(instance.instanceId); }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors"
                                         style={{ color: "var(--color-text-secondary)" }}
                                     >
                                         <ArrowDownToLine size={12} /> Send to Back
                                     </button>
                                     <button
-                                        onClick={() => { bringForward(instance.instanceId); setMenuOpen(false); }}
+                                        onClick={() => { bringForward(instance.instanceId); }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors"
                                         style={{ color: "var(--color-text-secondary)" }}
                                     >
                                         <ArrowUp size={12} /> Bring Forward
                                     </button>
                                     <button
-                                        onClick={() => { sendBackward(instance.instanceId); setMenuOpen(false); }}
+                                        onClick={() => { sendBackward(instance.instanceId); }}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.04] transition-colors"
                                         style={{ color: "var(--color-text-secondary)" }}
                                     >
@@ -313,7 +291,7 @@ export default function WidgetCard({
                                 <Trash2 size={12} /> Delete
                             </button>
                         </div>
-                    )}
+                    </PortalMenu>
                 </div>
             </div>
 

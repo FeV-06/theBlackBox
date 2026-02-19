@@ -34,6 +34,7 @@ export async function PUT(
         if (body.start) requestBody.start = { dateTime: body.start, timeZone: tz };
         if (body.end) requestBody.end = { dateTime: body.end, timeZone: tz };
         if (body.colorId !== undefined) requestBody.colorId = body.colorId;
+        if (body.location !== undefined) requestBody.location = body.location;
 
         const { data } = await calendar.events.patch({
             calendarId: "primary",
@@ -46,6 +47,7 @@ export async function PUT(
                 id: data.id,
                 summary: data.summary ?? "",
                 description: data.description ?? "",
+                location: data.location ?? "",
                 start: data.start?.dateTime ?? data.start?.date ?? "",
                 end: data.end?.dateTime ?? data.end?.date ?? "",
                 startTimeZone: data.start?.timeZone ?? tz,
