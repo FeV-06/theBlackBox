@@ -98,6 +98,11 @@
 - Google account connection/disconnection
 - Account info display (profile picture, name, email)
 
+### ✅ Canvas Upgrade Pack v1.1
+- **Widget Collapse/Expand**: Minimize widgets to header-only view (saving vertical space).
+- **Section Dividers**: New decorative widget type for organizing the dashboard (Line, Box, Glow styles).
+- **Advanced Layout Logic**: Resizing constraints for collapsed widgets, exclusion of dividers from auto-stacking.
+
 ---
 
 ## 3. API Routes Summary

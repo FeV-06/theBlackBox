@@ -52,17 +52,20 @@ export interface FocusSession {
     type: "normal" | "pomodoro";
 }
 
-export interface SubTask {
+export interface ProjectSubtask {
     id: string;
     text: string;
-    done: boolean;
+    completed: boolean;
 }
 
 export interface ProjectTask {
     id: string;
     text: string;
-    done: boolean;
-    subtasks: SubTask[];
+    createdAt: number;
+    subtasks: ProjectSubtask[];
+    isExpanded?: boolean; // Controls UI collapse state, default true
+    status: "todo" | "in_progress" | "done";
+    order: number;
 }
 
 export interface Project {
@@ -74,6 +77,7 @@ export interface Project {
     createdAt: number;
     streakDays: number;
     lastWorkedDate: string | null;
+    viewMode?: "list" | "kanban";
 }
 
 export interface Bookmark {

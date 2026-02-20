@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import {
     Download, Upload, ToggleLeft, ToggleRight, Palette, Puzzle, Trash2,
-    LogIn, LogOut, User, Loader2, Plus, Copy, Lock, Unlock
+    LogIn, LogOut, User, Loader2, Plus, Copy, Lock, Unlock,
+    LayoutTemplate, Save
 } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
@@ -11,6 +12,8 @@ import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
 import { WIDGET_REGISTRY } from "@/lib/widgetRegistry";
 import type { QuoteVibe } from "@/types/widget";
 import type { WidgetType } from "@/types/widgetInstance";
+import { useTemplateStore } from "@/store/useTemplateStore";
+import { DEFAULT_TEMPLATES, TemplatePreset } from "@/lib/defaultTemplates";
 
 const VIBES: { value: QuoteVibe; label: string }[] = [
     { value: "motivational", label: "💪 Motivational" },
@@ -138,6 +141,10 @@ export default function SettingsTab() {
                     {importStatus && <p className="text-xs mt-2" style={{ color: importStatus.startsWith("✓") ? "var(--color-success)" : "var(--color-danger)" }}>{importStatus}</p>}
                 </div>
 
+                {/* Template Manager */}
+                <TemplateManager />
+
+
                 {/* Widget Manager */}
                 <div className="glass-card p-5">
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
@@ -244,6 +251,93 @@ export default function SettingsTab() {
                         </div>
                     )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function TemplateManager() {
+    const { templates, applyTemplate, createFromCurrent, deleteTemplate, duplicateTemplate } = useTemplateStore();
+    const [newTemplateName, setNewTemplateName] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
+
+    // Combine defaults and user templates
+    const allTemplates = [...DEFAULT_TEMPLATES, ...templates];
+
+    const handleCreate = () => {
+        if (!newTemplateName.trim()) return;
+        createFromCurrent(newTemplateName);
+        setNewTemplateName("");
+        setIsCreating(false);
+    };
+
+    return (
+        <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+                    <LayoutTemplate size={16} /> Dashboard Templates
+                </h3>
+                <button
+                    onClick={() => setIsCreating(!isCreating)}
+                    className="btn-accent text-xs flex items-center gap-1.5 px-3 py-1.5"
+                >
+                    <Save size={13} /> Save Current
+                </button>
+            </div>
+
+            {isCreating && (
+                <div className="flex gap-2 mb-4 animate-fade-in">
+                    <input
+                        type="text"
+                        value={newTemplateName}
+                        onChange={(e) => setNewTemplateName(e.target.value)}
+                        placeholder="Template Name..."
+                        className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-xs outline-none"
+                        style={{ color: "var(--color-text-primary)" }}
+                        autoFocus
+                        onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                    />
+                    <button onClick={handleCreate} className="btn-accent px-3 py-1 text-xs">Save</button>
+                    <button onClick={() => setIsCreating(false)} className="btn-ghost px-3 py-1 text-xs">Cancel</button>
+                </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+                {allTemplates.map(t => {
+                    const isDefault = !!t.isDefault;
+                    return (
+                        <div key={t.id} className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/[0.02]" style={{ background: "rgba(255,255,255,0.01)" }}>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{t.name}</span>
+                                    {isDefault && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50">Default</span>}
+                                </div>
+                                <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                                    {new Date(t.updatedAt).toLocaleDateString()} • {t.snapshot.layout.length} widgets
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => applyTemplate(t.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#7C5CFF]/10 text-[#7C5CFF] hover:bg-[#7C5CFF]/20 transition-colors"
+                                >
+                                    Apply
+                                </button>
+
+                                <button onClick={() => duplicateTemplate(t.id)} className="p-1.5 rounded hover:bg-white/5 transition-colors" style={{ color: "var(--color-text-muted)" }} title="Duplicate">
+                                    <Copy size={13} />
+                                </button>
+
+                                {!isDefault && (
+                                    <button onClick={() => deleteTemplate(t.id)} className="p-1.5 rounded hover:bg-white/5 transition-colors" style={{ color: "var(--color-danger)" }} title="Delete">
+                                        <Trash2 size={13} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

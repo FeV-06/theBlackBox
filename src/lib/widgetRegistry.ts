@@ -11,6 +11,9 @@ import FocusSummaryWidget from "@/components/widgets/FocusSummaryWidget";
 import ProjectsOverviewWidget from "@/components/widgets/ProjectsOverviewWidget";
 import CustomApiWidget from "@/components/widgets/CustomApiWidget";
 import GmailWidget from "@/components/widgets/GmailWidget";
+import SectionDividerWidget from "@/components/widgets/SectionDividerWidget";
+import KanbanWidget from "@/components/widgets/KanbanWidget";
+import InsightsWidget from "@/components/widgets/InsightsWidget";
 
 import {
     Clock,
@@ -23,6 +26,9 @@ import {
     FolderKanban,
     Puzzle,
     Mail,
+    AlignLeft,
+    LayoutGrid,
+    BarChart3,
 } from "lucide-react";
 
 export const WIDGET_REGISTRY: WidgetTypeDefinition[] = [
@@ -36,6 +42,9 @@ export const WIDGET_REGISTRY: WidgetTypeDefinition[] = [
     { type: "projects_overview", defaultTitle: "Projects", icon: FolderKanban, component: ProjectsOverviewWidget, allowMultiple: false, defaultConfig: {} },
     { type: "custom_api", defaultTitle: "Custom API", icon: Puzzle, component: CustomApiWidget, allowMultiple: true, defaultConfig: {} },
     { type: "gmail", defaultTitle: "Gmail", icon: Mail, component: GmailWidget, allowMultiple: true, defaultConfig: { mode: "basic", mailbox: "inbox", status: "all", category: "all", query: "" } },
+    { type: "section_divider", defaultTitle: "Section Divider", icon: AlignLeft, component: SectionDividerWidget, allowMultiple: true, defaultConfig: { label: "New Section", style: "line" } },
+    { type: "kanban", defaultTitle: "Kanban Board", icon: LayoutGrid, component: KanbanWidget, allowMultiple: true, defaultConfig: {} },
+    { type: "insights", defaultTitle: "Insights", icon: BarChart3, component: InsightsWidget, allowMultiple: false, defaultConfig: {} },
 ];
 
 export const registryMap = new Map(WIDGET_REGISTRY.map((d) => [d.type, d]));

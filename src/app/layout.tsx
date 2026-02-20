@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import CommandPalette from "@/components/CommandPalette";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -23,7 +24,10 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" className={inter.variable}>
-            <body>{children}</body>
+            <body suppressHydrationWarning>
+                <CommandPalette />
+                {children}
+            </body>
         </html>
     );
 }

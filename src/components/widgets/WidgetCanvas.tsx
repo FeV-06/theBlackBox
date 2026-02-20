@@ -227,7 +227,7 @@ function UnknownWidget({ instance }: { instance: WidgetInstance }) {
 }
 
 export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
-    const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks } = useWidgetStore();
+    const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks, setInstanceCollapse } = useWidgetStore();
     const dashboardEditMode = useSettingsStore((s) => s.dashboardEditMode);
     /* ── Dynamic Canvas State (V4) ── */
     const [surfaceSize, setSurfaceSize] = useState({ w: 0, h: 0 });
@@ -343,7 +343,7 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
 
     /* ── Group Logic (BFS) ── */
     const groups = useMemo(() => {
-        const groupable = visibleInstances.filter(i => !i.groupDisabled);
+        const groupable = visibleInstances.filter(i => !i.groupDisabled && i.type !== "section_divider");
         const standalone = visibleInstances.filter(i => i.groupDisabled);
 
         const nodes = groupable.map(i => i.instanceId);
@@ -538,6 +538,16 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
             return copy;
         });
     }, [instances, updateInstanceLayout, unlinkFromStack]);
+
+    /* ── Group Collapse Helper ── */
+    const handleGroupCollapse = useCallback((groupId: string, collapsed: boolean) => {
+        const group = groups.find(g => g.groupId === groupId);
+        if (!group) return;
+
+        group.instanceIds.forEach(id => {
+            setInstanceCollapse(id, collapsed);
+        });
+    }, [groups, setInstanceCollapse]);
 
     /* ── Clear Guides Helper ── */
     const clearGuides = useCallback(() => {
@@ -771,19 +781,30 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
                                     y: animatedLayoutOverrides[activeId]?.y ?? activeInstance.layout.y // V4.7: Use activeInstance layout instead of anchor
                                 }}
                                 disableDragging={!dashboardEditMode || lockedFinal}
-                                enableResizing={dashboardEditMode && !lockedFinal ? {
-                                    bottom: true,
-                                    bottomRight: true,
-                                    right: true,
-                                    top: false,
-                                    topLeft: false,
-                                    topRight: false,
-                                    left: false,
-                                    bottomLeft: false,
-                                } : false}
+                                enableResizing={dashboardEditMode && !lockedFinal ? (
+                                    activeInstance.isCollapsed || activeInstance.type === "section_divider" ? {
+                                        right: true,
+                                        bottom: false,
+                                        bottomRight: false,
+                                        top: false,
+                                        topLeft: false,
+                                        topRight: false,
+                                        left: false,
+                                        bottomLeft: false,
+                                    } : {
+                                        bottom: true,
+                                        bottomRight: true,
+                                        right: true,
+                                        top: false,
+                                        topLeft: false,
+                                        topRight: false,
+                                        left: false,
+                                        bottomLeft: false,
+                                    }
+                                ) : false}
                                 dragHandleClassName="tbb-drag-handle"
-                                minWidth={280}
-                                minHeight={180}
+                                minWidth={activeInstance.type === "section_divider" ? 100 : 280}
+                                minHeight={activeInstance.isCollapsed ? (activeInstance.collapsedHeight ?? 64) : (activeInstance.type === "section_divider" ? 40 : 180)}
                                 onDragStart={() => {
                                     if (scrollRef.current) {
                                         dragScrollStartRef.current = {
@@ -1115,6 +1136,7 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
                                             onExpandStack={() => setExpandedGroupId(groupId)}
                                             onUnlinkFromStack={handleUnlinkFromStack}
                                             onRelinkToStacks={relinkToStacks}
+                                            onGroupCollapse={handleGroupCollapse}
                                         >
                                             {activeInstance.type === "projects_overview" ? (
                                                 <ProjectsOverviewWidget instance={activeInstance} onNavigate={onNavigate} />

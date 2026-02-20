@@ -26,8 +26,9 @@ export default function ProjectsOverviewWidget({ instance, onNavigate }: Project
                     </div>
                 ) : (
                     projects.map((project) => {
-                        const totalTasks = project.tasks.length;
-                        const doneTasks = project.tasks.filter((t) => t.done).length;
+                        const totalTasks = project.tasks.length + project.tasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0);
+                        const doneTasks = project.tasks.filter((t) => t.status === "done").length +
+                            project.tasks.reduce((sum, t) => sum + (t.subtasks?.filter(st => st.completed).length || 0), 0);
                         const progress = totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0;
                         return (
                             <div

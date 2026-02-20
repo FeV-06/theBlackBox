@@ -1,3 +1,10 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
 export const FALLBACK_QUOTES = {
     motivational: [
         "The only way to do great work is to love what you do. — Steve Jobs",

@@ -1,0 +1,412 @@
+/**
+ * Insight Engine v1
+ *
+ * Centralized analytics — generates intelligent, human-readable insights
+ * from Focus sessions, Todos, and Projects. NO AI, NO external APIs.
+ *
+ * Architecture: pure function, no side-effects, no Zustand.
+ */
+
+import type { FocusSession, Project } from "@/types/widget";
+import type { TodoItem } from "@/types/widgetInstance";
+
+/* ── Types ── */
+
+export interface Insight {
+    id: string;
+    type: "positive" | "warning" | "info";
+    title: string;
+    description: string;
+    priority: number; // higher = more important, used for sorting
+}
+
+export interface InsightInput {
+    focusSessions: FocusSession[];
+    todos: TodoItem[];
+    projects: Project[];
+}
+
+/* ── Constants ── */
+
+const MAX_INSIGHTS = 7;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/* ── Helpers ── */
+
+function toDateStr(ts: number): string {
+    return new Date(ts).toISOString().slice(0, 10);
+}
+
+function daysBetween(a: Date, b: Date): number {
+    return Math.floor(Math.abs(a.getTime() - b.getTime()) / MS_PER_DAY);
+}
+
+/* ── Insight Generators ── */
+
+/** 1. Peak focus hour — which hour of day has most focus time */
+function peakFocusHour(sessions: FocusSession[]): Insight | null {
+    if (sessions.length === 0) return null;
+
+    const hourBuckets = new Array(24).fill(0);
+    sessions.forEach((s) => {
+        const hour = new Date(s.startTime).getHours();
+        hourBuckets[hour] += s.duration;
+    });
+
+    const peakHour = hourBuckets.indexOf(Math.max(...hourBuckets));
+    const totalMinutes = Math.round(hourBuckets[peakHour] / 60);
+
+    if (totalMinutes === 0) return null;
+
+    const label =
+        peakHour === 0
+            ? "12 AM"
+            : peakHour < 12
+                ? `${peakHour} AM`
+                : peakHour === 12
+                    ? "12 PM"
+                    : `${peakHour - 12} PM`;
+
+    return {
+        id: "peak-focus-hour",
+        type: "info",
+        title: "Peak Focus Hour",
+        description: `You focus best around ${label} — ${totalMinutes} total minutes logged at this hour`,
+        priority: 6,
+    };
+}
+
+/** 2. Weekly focus trend — % increase/decrease vs previous week */
+function weeklyFocusTrend(sessions: FocusSession[]): Insight | null {
+    if (sessions.length < 2) return null;
+
+    const now = Date.now();
+    const thisWeekStart = now - 7 * MS_PER_DAY;
+    const lastWeekStart = now - 14 * MS_PER_DAY;
+
+    const thisWeek = sessions
+        .filter((s) => s.startTime >= thisWeekStart)
+        .reduce((a, s) => a + s.duration, 0);
+
+    const lastWeek = sessions
+        .filter((s) => s.startTime >= lastWeekStart && s.startTime < thisWeekStart)
+        .reduce((a, s) => a + s.duration, 0);
+
+    if (lastWeek === 0 && thisWeek === 0) return null;
+
+    if (lastWeek === 0) {
+        return {
+            id: "weekly-focus-trend",
+            type: "positive",
+            title: "Focus Kickoff",
+            description: `${Math.round(thisWeek / 60)} minutes of focus this week — great start!`,
+            priority: 5,
+        };
+    }
+
+    const pctChange = ((thisWeek - lastWeek) / lastWeek) * 100;
+    const absChange = Math.abs(Math.round(pctChange));
+
+    if (pctChange >= 10) {
+        return {
+            id: "weekly-focus-trend",
+            type: "positive",
+            title: "Focus Up",
+            description: `${absChange}% more focus time this week vs last — keep the momentum`,
+            priority: 7,
+        };
+    } else if (pctChange <= -10) {
+        return {
+            id: "weekly-focus-trend",
+            type: "warning",
+            title: "Focus Dip",
+            description: `${absChange}% less focus time this week — consider scheduling a focus block`,
+            priority: 7,
+        };
+    }
+
+    return {
+        id: "weekly-focus-trend",
+        type: "info",
+        title: "Steady Focus",
+        description: `Focus time is consistent week-over-week — within ${absChange}%`,
+        priority: 3,
+    };
+}
+
+/** 3. Todo completion rate */
+function todoCompletion(todos: TodoItem[]): Insight | null {
+    if (todos.length === 0) return null;
+
+    const completed = todos.filter((t) => t.completed).length;
+    const rate = Math.round((completed / todos.length) * 100);
+
+    const type = rate >= 70 ? "positive" : rate >= 40 ? "info" : "warning";
+
+    return {
+        id: "todo-completion",
+        type,
+        title: `${rate}% Completion Rate`,
+        description: `${completed} of ${todos.length} tasks completed`,
+        priority: rate >= 70 ? 5 : 6,
+    };
+}
+
+/** 4. Overdue tasks */
+function overdueTasks(todos: TodoItem[]): Insight | null {
+    const today = new Date().toISOString().slice(0, 10);
+    const overdue = todos.filter((t) => !t.completed && t.dueDate && t.dueDate < today);
+
+    if (overdue.length === 0) return null;
+
+    return {
+        id: "overdue-tasks",
+        type: "warning",
+        title: `${overdue.length} Overdue Task${overdue.length > 1 ? "s" : ""}`,
+        description: `You have ${overdue.length} task${overdue.length > 1 ? "s" : ""} past due — review and reprioritize`,
+        priority: 8,
+    };
+}
+
+/** 5. Overall project progress */
+function projectProgress(projects: Project[]): Insight | null {
+    if (projects.length === 0) return null;
+
+    let totalItems = 0;
+    let doneItems = 0;
+
+    projects.forEach((p) => {
+        totalItems +=
+            p.tasks.length +
+            p.tasks.reduce((s, t) => s + (t.subtasks?.length || 0), 0);
+        doneItems +=
+            p.tasks.filter((t) => t.status === "done").length +
+            p.tasks.reduce(
+                (s, t) => s + (t.subtasks?.filter((st) => st.completed).length || 0),
+                0
+            );
+    });
+
+    if (totalItems === 0) return null;
+
+    const pct = Math.round((doneItems / totalItems) * 100);
+
+    return {
+        id: "project-progress",
+        type: pct >= 70 ? "positive" : "info",
+        title: `${pct}% Project Progress`,
+        description: `${doneItems} of ${totalItems} items completed across ${projects.length} project${projects.length > 1 ? "s" : ""}`,
+        priority: 4,
+    };
+}
+
+/** 6. Most active project */
+function mostActiveProject(projects: Project[]): Insight | null {
+    if (projects.length === 0) return null;
+
+    const best = projects.reduce(
+        (top, p) => {
+            const done =
+                p.tasks.filter((t) => t.status === "done").length +
+                p.tasks.reduce(
+                    (s, t) => s + (t.subtasks?.filter((st) => st.completed).length || 0),
+                    0
+                );
+            return done > top.done ? { name: p.name, done } : top;
+        },
+        { name: "", done: 0 }
+    );
+
+    if (best.done === 0) return null;
+
+    return {
+        id: "most-active-project",
+        type: "positive",
+        title: "Most Active",
+        description: `"${best.name}" leads with ${best.done} items done`,
+        priority: 3,
+    };
+}
+
+/** 7. Consecutive activity streak */
+function activityStreak(
+    sessions: FocusSession[],
+    todos: TodoItem[],
+    projects: Project[]
+): Insight | null {
+    // Collect all activity dates
+    const dates = new Set<string>();
+
+    sessions.forEach((s) => dates.add(toDateStr(s.startTime)));
+    todos.forEach((t) => {
+        if (t.completed) dates.add(toDateStr(t.createdAt));
+    });
+    projects.forEach((p) => {
+        if (p.lastWorkedDate) dates.add(p.lastWorkedDate);
+        p.tasks.forEach((t) => dates.add(toDateStr(t.createdAt)));
+    });
+
+    // Count consecutive days ending today (or yesterday)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let streak = 0;
+    const check = new Date(today);
+
+    // Allow starting from yesterday if no activity today yet
+    if (!dates.has(toDateStr(check.getTime()))) {
+        check.setDate(check.getDate() - 1);
+    }
+
+    while (dates.has(toDateStr(check.getTime()))) {
+        streak++;
+        check.setDate(check.getDate() - 1);
+    }
+
+    if (streak === 0) return null;
+
+    return {
+        id: "activity-streak",
+        type: streak >= 7 ? "positive" : streak >= 3 ? "info" : "info",
+        title: `${streak}-Day Streak`,
+        description:
+            streak >= 7
+                ? `${streak} consecutive days active — you're on fire 🔥`
+                : `${streak} consecutive days with activity — keep it going`,
+        priority: streak >= 7 ? 8 : streak >= 3 ? 5 : 2,
+    };
+}
+
+/** 8. Pattern: high focus + low completion → warning */
+function patternHighFocusLowCompletion(
+    sessions: FocusSession[],
+    todos: TodoItem[]
+): Insight | null {
+    if (sessions.length === 0 || todos.length === 0) return null;
+
+    const now = Date.now();
+    const weekAgo = now - 7 * MS_PER_DAY;
+    const weekFocusMinutes =
+        sessions
+            .filter((s) => s.startTime >= weekAgo)
+            .reduce((a, s) => a + s.duration, 0) / 60;
+
+    const completed = todos.filter((t) => t.completed).length;
+    const rate = completed / todos.length;
+
+    // High focus (> 120 min/week) but low completion (< 30%)
+    if (weekFocusMinutes > 120 && rate < 0.3) {
+        return {
+            id: "pattern-focus-vs-completion",
+            type: "warning",
+            title: "Focus ≠ Execution",
+            description: `${Math.round(weekFocusMinutes)} min focused this week but only ${Math.round(rate * 100)}% tasks done — try breaking tasks smaller`,
+            priority: 9,
+        };
+    }
+
+    return null;
+}
+
+/** 9. Pattern: high completion + low focus → info */
+function patternHighCompletionLowFocus(
+    sessions: FocusSession[],
+    todos: TodoItem[]
+): Insight | null {
+    if (sessions.length === 0 || todos.length === 0) return null;
+
+    const now = Date.now();
+    const weekAgo = now - 7 * MS_PER_DAY;
+    const weekFocusMinutes =
+        sessions
+            .filter((s) => s.startTime >= weekAgo)
+            .reduce((a, s) => a + s.duration, 0) / 60;
+
+    const completed = todos.filter((t) => t.completed).length;
+    const rate = completed / todos.length;
+
+    // High completion (> 70%) but low focus (< 30 min)
+    if (rate > 0.7 && weekFocusMinutes < 30) {
+        return {
+            id: "pattern-completion-vs-focus",
+            type: "info",
+            title: "Quick Wins",
+            description: `${Math.round(rate * 100)}% completion with only ${Math.round(weekFocusMinutes)} min focus — consider using focus mode for deeper work`,
+            priority: 4,
+        };
+    }
+
+    return null;
+}
+
+/** 10. Productivity Score (0–100) */
+function productivityScore(input: InsightInput): Insight | null {
+    const { focusSessions, todos, projects } = input;
+
+    // Focus component (0–40 points): weekly minutes / 300 (5h target), capped at 40
+    const now = Date.now();
+    const weekAgo = now - 7 * MS_PER_DAY;
+    const weekFocusMin =
+        focusSessions
+            .filter((s) => s.startTime >= weekAgo)
+            .reduce((a, s) => a + s.duration, 0) / 60;
+    const focusScore = Math.min(40, Math.round((weekFocusMin / 300) * 40));
+
+    // Task component (0–35 points): completion rate * 35
+    const taskRate = todos.length > 0 ? todos.filter((t) => t.completed).length / todos.length : 0;
+    const taskScore = Math.round(taskRate * 35);
+
+    // Streak component (0–25 points): streak days / 7, capped at 25
+    const dates = new Set<string>();
+    focusSessions.forEach((s) => dates.add(toDateStr(s.startTime)));
+    todos.forEach((t) => { if (t.completed) dates.add(toDateStr(t.createdAt)); });
+    projects.forEach((p) => { if (p.lastWorkedDate) dates.add(p.lastWorkedDate); });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let streak = 0;
+    const check = new Date(today);
+    if (!dates.has(toDateStr(check.getTime()))) check.setDate(check.getDate() - 1);
+    while (dates.has(toDateStr(check.getTime()))) {
+        streak++;
+        check.setDate(check.getDate() - 1);
+    }
+    const streakScore = Math.min(25, Math.round((streak / 7) * 25));
+
+    const total = focusScore + taskScore + streakScore;
+
+    const type = total >= 70 ? "positive" : total >= 40 ? "info" : "warning";
+    const emoji = total >= 80 ? "🔥" : total >= 60 ? "⚡" : total >= 40 ? "📈" : "🎯";
+
+    return {
+        id: "productivity-score",
+        type,
+        title: `Score: ${total}/100 ${emoji}`,
+        description: `Focus: ${focusScore}/40 • Tasks: ${taskScore}/35 • Streak: ${streakScore}/25`,
+        priority: 10, // always show this first
+    };
+}
+
+/* ── Main Export ── */
+
+export function generateInsights(input: InsightInput): Insight[] {
+    const { focusSessions, todos, projects } = input;
+
+    const all: (Insight | null)[] = [
+        productivityScore(input),
+        overdueTasks(todos),
+        patternHighFocusLowCompletion(focusSessions, todos),
+        weeklyFocusTrend(focusSessions),
+        peakFocusHour(focusSessions),
+        todoCompletion(todos),
+        activityStreak(focusSessions, todos, projects),
+        projectProgress(projects),
+        mostActiveProject(projects),
+        patternHighCompletionLowFocus(focusSessions, todos),
+    ];
+
+    return all
+        .filter((insight): insight is Insight => insight !== null)
+        .sort((a, b) => b.priority - a.priority)
+        .slice(0, MAX_INSIGHTS);
+}

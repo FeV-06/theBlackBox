@@ -5,11 +5,13 @@ import { useState, useEffect } from "react";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
 import { fetchQuote } from "@/lib/utils";
+import { useCommandPalette } from "@/components/CommandPalette";
 
 export default function Header() {
     const [quote, setQuote] = useState("");
     const vibe = useSettingsStore((s) => s.quoteVibe);
     const { isConnected, profile, checkConnection } = useGoogleAuthStore();
+    const { open: openPalette } = useCommandPalette();
 
     useEffect(() => {
         fetchQuote(vibe).then(setQuote);
@@ -40,12 +42,14 @@ export default function Header() {
                         background: "rgba(255,255,255,0.05)",
                         border: "1px solid rgba(255,255,255,0.1)",
                     }}
+                    onClick={openPalette}
                 >
                     <Search size={16} className="text-[color:var(--color-text-muted)]" />
                     <input
                         type="text"
-                        placeholder="Search..."
-                        className="bg-transparent text-sm outline-none flex-1 placeholder:text-[color:var(--color-text-muted)]"
+                        placeholder="Search... (Ctrl+K)"
+                        readOnly
+                        className="bg-transparent text-sm outline-none flex-1 placeholder:text-[color:var(--color-text-muted)] cursor-pointer"
                         style={{ color: "var(--color-text-primary)" }}
                     />
                 </div>
@@ -120,6 +124,6 @@ export default function Header() {
                     </div>
                 )}
             </div>
-        </header>
+        </header >
     );
 }

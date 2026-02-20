@@ -11,6 +11,7 @@ import ProjectsTab from "@/components/tabs/ProjectsTab";
 import FocusTab from "@/components/tabs/FocusTab";
 import CalendarTab from "@/components/tabs/CalendarTab";
 import SettingsTab from "@/components/tabs/SettingsTab";
+import FocusTimerManager from "./FocusTimerManager";
 
 const tabComponents: Record<TabId, React.ComponentType<{ onNavigate?: (tab: TabId) => void }>> = {
     dashboard: DashboardTab,
@@ -20,13 +21,16 @@ const tabComponents: Record<TabId, React.ComponentType<{ onNavigate?: (tab: TabI
     settings: SettingsTab,
 };
 
+import { useNavigationStore } from "@/store/useNavigationStore";
+
 export default function DashboardShell() {
-    const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+    const { activeTab, setActiveTab } = useNavigationStore();
 
     const ActiveComponent = tabComponents[activeTab];
 
     return (
         <div className="flex h-screen">
+            <FocusTimerManager />
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex flex-col flex-1 ml-0 md:ml-[72px]">

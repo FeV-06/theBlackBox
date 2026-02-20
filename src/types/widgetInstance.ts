@@ -12,7 +12,10 @@ export type WidgetType =
     | "focus_summary"
     | "projects_overview"
     | "custom_api"
-    | "gmail";
+    | "gmail"
+    | "section_divider"
+    | "kanban"
+    | "insights";
 
 export interface WidgetLayout {
     x: number;
@@ -33,6 +36,31 @@ export interface WidgetInstance {
     isLocked?: boolean;
     groupDisabled?: boolean;
     zIndex?: number;
+
+    // V1.1 Collapse Support
+    isCollapsed?: boolean;
+    collapsedHeight?: number;
+    savedExpandedHeight?: number;
+
+    // Per-instance widget data
+    data?: {
+        todos?: TodoItem[];
+        sortMode?: "manual" | "priority" | "dueDate";
+        [key: string]: any;
+    };
+}
+
+export interface TodoItem {
+    id: string;
+    text: string;
+    completed: boolean;
+    priority: "low" | "medium" | "high";
+    dueDate?: string; // LOCAL ISO STRING (NOT UTC SHIFTED)
+    createdAt: number;
+    linkedEventId?: string; // future calendar sync
+    isSynced?: boolean;
+    syncStatus?: "idle" | "pending" | "success" | "error";
+    lastSyncedAt?: number;
 }
 
 /**

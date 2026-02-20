@@ -116,6 +116,12 @@ export const useFocusStore = create<FocusState>()(
             partialize: (state) => ({
                 sessions: state.sessions,
                 mode: state.mode,
+                isRunning: state.isRunning,
+                isPaused: state.isPaused,
+                startTime: state.startTime,
+                elapsed: state.elapsed,
+                pomodoroPhase: state.pomodoroPhase,
+                pomodoroCycles: state.pomodoroCycles,
                 pomodoroWork: state.pomodoroWork,
                 pomodoroBreak: state.pomodoroBreak,
             }),

@@ -28,18 +28,7 @@ export default function FocusTab() {
         clearSessions,
     } = useFocusStore();
 
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    useEffect(() => {
-        if (isRunning && !isPaused) {
-            intervalRef.current = setInterval(tick, 1000);
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-    }, [isRunning, isPaused, tick]);
 
     // Weekly chart data
     const weekDays = getWeekDays();
