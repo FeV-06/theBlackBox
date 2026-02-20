@@ -139,6 +139,8 @@
 | `useFocusStore` | `tbb-focus` | Timer state, sessions history, pomodoro config |
 | `useProjectStore` | `tbb-projects` | Projects with tasks, subtasks, streaks |
 | `useSettingsStore` | `tbb-settings` | Quote vibe, theme preferences |
+| `useNavigationStore` | `tbb-navigation`| Active dashboard tab state |
+| `useTemplateStore` | `tbb-templates` | Dashboard layout templates (presets and user-created) |
 | `useGoogleAuthStore` | *(not persisted)* | Runtime-only: connection status, profile, auth actions |
 
 All persisted stores use Zustand's `persist` middleware with `localStorage` as the storage backend. Keys are prefixed with `tbb-`.
@@ -299,7 +301,7 @@ TheBlackBox/
 │   │   ├── calendarTime.ts         # Timezone-safe date formatting
 │   │   ├── calendarColors.ts       # Google Calendar color mapping
 │   │   └── utils.ts                # Quote fetching, time formatting, helpers
-│   ├── store/                      # 7 Zustand stores
+│   ├── store/                      # 9 Zustand stores
 │   └── types/
 │       └── widget.ts               # All shared types (WidgetId, TabId, Project, etc.)
 ├── next.config.ts                  # COOP header, redirects
