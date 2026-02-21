@@ -16,6 +16,25 @@ import { useTemplateStore } from "@/store/useTemplateStore";
 import { DEFAULT_TEMPLATES, TemplatePreset } from "@/lib/defaultTemplates";
 import { cn } from "@/lib/utils";
 import { useIsMounted } from "@/hooks/useIsMounted";
+import { GlowingEffect } from "@/components/ui/glowing-effect";
+
+function SettingsCard({ children, className, style }: { children: React.ReactNode, className?: string, style?: React.CSSProperties }) {
+    return (
+        <div className="relative rounded-2xl border border-white/5 p-[1px] md:p-1 h-full">
+            <GlowingEffect
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+            />
+            <div className={cn("relative z-10 glass-card p-5 h-full", className)} style={style}>
+                {children}
+            </div>
+        </div>
+    );
+}
 
 const VIBES: { value: QuoteVibe; label: string }[] = [
     { value: "motivational", label: "💪 Motivational" },
@@ -87,7 +106,7 @@ export default function SettingsTab() {
 
             <div className="flex flex-col gap-6">
                 {/* Command Palette Theme */}
-                <div className="glass-card p-5 border-l-4" style={{ borderLeftColor: "var(--color-accent)" }}>
+                <SettingsCard className="border-l-4" style={{ borderLeftColor: "var(--color-accent)" }}>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <Command size={16} style={{ color: "var(--color-accent)" }} /> Command Palette Theme
                     </h3>
@@ -108,10 +127,10 @@ export default function SettingsTab() {
                             </button>
                         ))}
                     </div>
-                </div>
+                </SettingsCard>
 
                 {/* Google Account */}
-                <div className="glass-card p-5">
+                <SettingsCard>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <User size={16} /> Google Account
                     </h3>
@@ -151,10 +170,10 @@ export default function SettingsTab() {
                             </button>
                         </div>
                     )}
-                </div>
+                </SettingsCard>
 
                 {/* Export/Import */}
-                <div className="glass-card p-5">
+                <SettingsCard>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <Download size={16} /> Data Backup
                     </h3>
@@ -168,14 +187,14 @@ export default function SettingsTab() {
                         </label>
                     </div>
                     {importStatus && <p className="text-xs mt-2" style={{ color: importStatus.startsWith("✓") ? "var(--color-success)" : "var(--color-danger)" }}>{importStatus}</p>}
-                </div>
+                </SettingsCard>
 
                 {/* Template Manager */}
                 <TemplateManager />
 
 
                 {/* Widget Manager */}
-                <div className="glass-card p-5">
+                <SettingsCard>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <Puzzle size={16} /> Widget Manager
                     </h3>
@@ -237,10 +256,10 @@ export default function SettingsTab() {
                         })}
                     </div>
                     <button onClick={resetToDefaults} className="btn-ghost text-xs mt-3">Reset to defaults</button>
-                </div>
+                </SettingsCard>
 
                 {/* Quote vibe */}
-                <div className="glass-card p-5">
+                <SettingsCard>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <Palette size={16} /> Quote Vibe
                     </h3>
@@ -257,10 +276,10 @@ export default function SettingsTab() {
                             </button>
                         ))}
                     </div>
-                </div>
+                </SettingsCard>
 
                 {/* API widgets manager */}
-                <div className="glass-card p-5">
+                <SettingsCard>
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                         <Puzzle size={16} /> Custom API Widgets
                     </h3>
@@ -279,7 +298,7 @@ export default function SettingsTab() {
                             ))}
                         </div>
                     )}
-                </div>
+                </SettingsCard>
             </div>
         </div>
     );
@@ -301,7 +320,7 @@ function TemplateManager() {
     };
 
     return (
-        <div className="glass-card p-5">
+        <SettingsCard>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
                     <LayoutTemplate size={16} /> Dashboard Templates
@@ -369,6 +388,6 @@ function TemplateManager() {
                     );
                 })}
             </div>
-        </div>
+        </SettingsCard>
     );
 }

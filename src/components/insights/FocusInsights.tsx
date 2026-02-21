@@ -103,7 +103,7 @@ export default function FocusInsights({
                                 }}
                             />
                             <Area
-                                isAnimationActive={true}
+                                isAnimationActive={false}
                                 type="monotone"
                                 dataKey="minutes"
                                 stroke={accent}

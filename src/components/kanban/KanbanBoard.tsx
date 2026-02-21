@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import {
     DndContext,
     DragOverlay,
-    closestCorners,
+    closestCenter,
     KeyboardSensor,
     PointerSensor,
     useSensor,
     useSensors,
     DragStartEvent,
     DragEndEvent,
-    DragOverEvent
+    DragOverEvent,
+    MeasuringStrategy
 } from "@dnd-kit/core";
+import type { Modifier } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanCard } from "./KanbanCard";
@@ -33,6 +35,7 @@ const COLUMNS = [
 export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps) {
     const { moveTaskStatus, moveTaskBetweenColumns } = useProjectStore();
     const [activeId, setActiveId] = useState<string | null>(null);
+    const boardRef = useRef<HTMLDivElement>(null);
 
     const tasksByColumn = useMemo(() => {
         let tasks = project.tasks;
@@ -78,6 +81,46 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
         })
     );
 
+    /**
+     * Custom modifier to compensate for ancestor CSS transforms (react-rnd).
+     * react-rnd positions widgets via transform: translate(x, y).
+     * dnd-kit's DragOverlay uses position: fixed and doesn't account for
+     * these ancestor transforms, causing an offset equal to the widget's
+     * canvas position. We accumulate ALL ancestor transforms and subtract them.
+     */
+    const adjustForAncestorTransform: Modifier = useCallback(({ transform: dragTransform }) => {
+        if (!boardRef.current) return dragTransform;
+
+        let totalTx = 0;
+        let totalTy = 0;
+
+        // Walk up the ENTIRE DOM tree and accumulate all CSS transforms
+        let el: HTMLElement | null = boardRef.current.parentElement;
+        while (el) {
+            const cs = window.getComputedStyle(el);
+            const tf = cs.transform;
+            if (tf && tf !== "none") {
+                // Parse the matrix: matrix(a, b, c, d, tx, ty)
+                const match = tf.match(/matrix.*\((.+)\)/);
+                if (match) {
+                    const values = match[1].split(",").map(Number);
+                    totalTx += values[4] || 0;
+                    totalTy += values[5] || 0;
+                }
+            }
+            el = el.parentElement;
+        }
+
+        // No transforms found — no compensation needed (e.g. Projects tab)
+        if (totalTx === 0 && totalTy === 0) return dragTransform;
+
+        return {
+            ...dragTransform,
+            x: dragTransform.x - totalTx,
+            y: dragTransform.y - totalTy,
+        };
+    }, []);
+
     const handleDragStart = (event: DragStartEvent) => {
         setActiveId(event.active.id as string);
     };
@@ -117,29 +160,35 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
         const activeId = active.id as string;
         const overId = over.id as string;
 
-        const activeTask = project.tasks.find(t => t.id === activeId);
-        if (!activeTask) return;
+        // Read FRESH task data from the store — the memoized tasksByColumn
+        // may be stale if handleDragOver already moved the task mid-drag.
+        const freshProject = useProjectStore.getState().projects.find(p => p.id === project.id);
+        if (!freshProject) return;
 
-        const activeStatus = activeTask.status;
+        const freshTask = freshProject.tasks.find(t => t.id === activeId);
+        if (!freshTask) return;
+
+        const activeStatus = freshTask.status;
+
+        // Build fresh column grouping
+        const freshColumn = freshProject.tasks
+            .filter(t => t.status === activeStatus)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
 
         // Reordering within the (possibly newly assigned) column
-        const overTask = project.tasks.find(t => t.id === overId);
-        if (overTask) {
-            const overStatus = overTask.status;
-            if (activeStatus === overStatus) {
-                const targetColumnTasks = tasksByColumn[overStatus];
-                const oldIndex = targetColumnTasks.findIndex(t => t.id === activeId);
-                const newIndex = targetColumnTasks.findIndex(t => t.id === overId);
+        const overTask = freshProject.tasks.find(t => t.id === overId);
+        if (overTask && overTask.status === activeStatus) {
+            const oldIndex = freshColumn.findIndex(t => t.id === activeId);
+            const newIndex = freshColumn.findIndex(t => t.id === overId);
 
-                if (oldIndex !== newIndex) {
-                    moveTaskBetweenColumns(project.id, activeId, overStatus as any, newIndex);
-                }
+            if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+                moveTaskBetweenColumns(project.id, activeId, activeStatus as any, newIndex);
             }
-        } else {
-            // Check if we dropped on a column/container
+        } else if (!overTask) {
+            // Dropped on a column container
             const overColumn = COLUMNS.find(c => c.id === overId);
             if (overColumn && activeStatus !== overColumn.id) {
-                const targetLength = tasksByColumn[overColumn.id].length;
+                const targetLength = freshProject.tasks.filter(t => t.status === overColumn.id).length;
                 moveTaskBetweenColumns(project.id, activeId, overColumn.id as any, targetLength);
             }
         }
@@ -148,12 +197,17 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={closestCenter}
+            measuring={{
+                droppable: {
+                    strategy: MeasuringStrategy.Always,
+                },
+            }}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
         >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start w-full pb-8">
+            <div ref={boardRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start w-full pb-8">
                 {COLUMNS.map((col) => (
                     <KanbanColumn
                         key={col.id}
@@ -166,9 +220,10 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
                 ))}
             </div>
 
-            <DragOverlay>
+            <DragOverlay dropAnimation={null} modifiers={[adjustForAncestorTransform]}>
                 {activeId && activeTask ? <KanbanCard task={activeTask} projectId={project.id} projectColor={project.color} isOverlay /> : null}
             </DragOverlay>
         </DndContext>
     );
 }
+

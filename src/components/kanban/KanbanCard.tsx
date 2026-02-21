@@ -30,12 +30,12 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
         transform,
         transition,
         isDragging
-    } = useSortable({ id: task.id });
+    } = useSortable({ id: task.id, disabled: isOverlay });
 
-    const style = {
-        transform: CSS.Transform.toString(transform),
+    const style = isOverlay ? undefined : {
+        transform: CSS.Translate.toString(transform),
         transition,
-        zIndex: isDragging || isOverlay ? 50 : 1,
+        zIndex: isDragging ? 50 : 1,
         opacity: isDragging ? 0.4 : 1,
     };
 
@@ -45,9 +45,9 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
 
     return (
         <div
-            ref={setNodeRef}
+            ref={isOverlay ? undefined : setNodeRef}
             style={style}
-            className={`glass-card p-3.5 rounded-xl flex flex-col gap-3 transition-all duration-300 relative overflow-hidden group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20" : "hover:border-white/10"}`}
+            className={`glass-card p-3.5 rounded-xl flex flex-col gap-3 transition-all duration-300 relative overflow-hidden group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"}`}
         >
             {/* Subtle Gradient Glow */}
             <div
@@ -135,9 +135,9 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                     )}
 
                     <div
-                        {...attributes}
-                        {...listeners}
-                        className="cursor-grab active:cursor-grabbing text-white/10 hover:text-white/30 p-1.5 -mr-1"
+                        {...(isOverlay ? {} : attributes)}
+                        {...(isOverlay ? {} : listeners)}
+                        className={`text-white/10 hover:text-white/30 p-1.5 -mr-1 ${isOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
                     >
                         <GripVertical size={14} />
                     </div>

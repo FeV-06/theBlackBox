@@ -44,6 +44,5 @@ export interface CombinedPoint {
 
 export interface InsightCard {
     text: string;
-    type: "info" | "warning" | "success" | "predictive";
-    isPredictive?: boolean;
+    type: "info" | "warning" | "success";
 }

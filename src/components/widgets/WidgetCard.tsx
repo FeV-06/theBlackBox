@@ -6,7 +6,6 @@ import { GripVertical, MoreVertical, Pencil, Copy, Trash2, Check, X, Lock, Unloc
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { PortalMenu } from "@/components/ui/PortalMenu";
 import { useSettingsStore } from "@/store/useSettingsStore";
-import { useWidgetPriority } from "@/hooks/useWidgetPriority";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import type { WidgetInstance, WidgetTypeDefinition } from "@/types/widgetInstance";
 
@@ -57,12 +56,6 @@ export default function WidgetCard({
     const title = instance.title ?? definition.defaultTitle;
     const Icon = definition.icon;
 
-    // Contextual Priority
-    const priority = useWidgetPriority(instance);
-    const safeOpacity = priority.score <= 30 ? 0.6 : 1;
-    const isHighPriority = priority.score >= 70;
-    const isVeryHighPriority = priority.score > 85;
-
     // Auto-focus rename input
     useEffect(() => {
         if (renaming) inputRef.current?.focus();
@@ -99,11 +92,11 @@ export default function WidgetCard({
     const effectiveEditMode = isMounted ? dashboardEditMode : false;
     const isLockedState = isMounted ? (stackCount > 1 ? groupLocked : instance.isLocked) : false;
 
-    // Priority-based dynamic styles - wait for mount to avoid hydration mismatch with persisted settings
+    // Wait for mount to avoid hydration mismatch with persisted settings
     const motionStyle = {
-        scale: isMounted && isHighPriority && !effectiveEditMode ? 1.015 : 1,
-        boxShadow: isMounted && isHighPriority && !effectiveEditMode && priority.glowColor ? `0 0 18px ${priority.glowColor}33` : undefined,
-        opacity: isMounted && !effectiveEditMode ? safeOpacity : 1,
+        scale: 1,
+        boxShadow: undefined,
+        opacity: 1,
     };
 
     return (
@@ -118,19 +111,7 @@ export default function WidgetCard({
                 } ${isLockedState ? "border-white/10 opacity-95 shadow-none ring-0" : ""} ${className}`}
             style={{ backdropFilter: isDivider ? "none" : "blur(12px)" }}
         >
-            {/* Urgent Badge */}
-            {!dashboardEditMode && isVeryHighPriority && (
-                <div
-                    className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-lg z-50 pointer-events-none"
-                    style={{
-                        backgroundColor: priority.glowColor || "rgba(249, 115, 22, 1)",
-                        color: "#fff",
-                        boxShadow: `0 0 12px ${priority.glowColor || "rgba(249, 115, 22, 1)"}`,
-                    }}
-                >
-                    Urgent
-                </div>
-            )}
+
 
             {/* Title bar / Drag Handle - HIDDEN for dividers */}
             {!isDivider && (

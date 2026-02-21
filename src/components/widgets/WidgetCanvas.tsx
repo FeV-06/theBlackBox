@@ -94,6 +94,8 @@ interface ResizeAlignResult {
 
 interface WidgetCanvasProps {
     onNavigate?: (tab: TabId) => void;
+    fullHeight?: boolean;
+    fixedCanvas?: boolean;
 }
 
 /* ── Alignment Snap Logic ── */
@@ -227,7 +229,7 @@ function UnknownWidget({ instance }: { instance: WidgetInstance }) {
     );
 }
 
-export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
+export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanvas = false }: WidgetCanvasProps) {
     const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks, setInstanceCollapse } = useWidgetStore();
     const dashboardEditMode = useSettingsStore((s) => s.dashboardEditMode);
     /* ── Dynamic Canvas State (V4) ── */
@@ -643,14 +645,14 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
     return (
         <div
             ref={scrollRef}
-            className="relative w-full h-[calc(100vh-140px)] overflow-y-auto overflow-x-hidden rounded-2xl"
+            className={`relative w-full overflow-x-hidden rounded-2xl ${fullHeight ? 'h-screen' : 'h-[calc(100vh-140px)]'} ${fixedCanvas ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
         >
             <div
                 ref={surfaceRef}
                 className="relative transition-[height] duration-75 ease-out"
                 style={{
                     width: "100%",
-                    height: surfaceSize.h,
+                    height: fixedCanvas ? "100%" : surfaceSize.h,
                     // minWidth/minHeight removed for V4.1 to rely on explicit pixel size
                     backgroundImage: dashboardEditMode
                         ? "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)"

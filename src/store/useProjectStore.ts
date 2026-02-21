@@ -4,7 +4,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Project, ProjectTask, ProjectSubtask } from "@/types/widget";
 import { generateId, getTodayStr } from "@/lib/utils";
-import { logBehavior } from "@/lib/intelligence/behaviorTracker";
 
 interface ProjectState {
     projects: Project[];
@@ -88,7 +87,6 @@ export const useProjectStore = create<ProjectState>()(
                 set((s) => ({ projects: s.projects.filter((p) => p.id !== id) })),
 
             createTask: (projectId, text, status = "todo") => {
-                logBehavior("project_update");
                 set((s) => ({
                     projects: updateProjectInList(s.projects, projectId, (p) => {
                         const targetTasks = p.tasks.filter(t => t.status === status);
@@ -142,7 +140,6 @@ export const useProjectStore = create<ProjectState>()(
                 })),
 
             updateTask: (projectId, taskId, updates) => {
-                logBehavior("project_update");
                 set((s) => ({
                     projects: updateProjectInList(s.projects, projectId, (p) =>
                         updateTaskInProject(p, taskId, (t) => ({ ...t, ...updates }))

@@ -7,9 +7,6 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import type { WidgetInstance, TodoItem } from "@/types/widgetInstance";
 import type { TimeRange } from "@/types/insights";
-import { useDashboardContext } from "@/hooks/useDashboardContext";
-
-// Data layer
 import { extractFocusPoints, extractTaskStats, extractProjectStats, extractCombinedData } from "@/lib/insights/extractors";
 import { getDaysInRange } from "@/lib/insights/aggregators";
 import { formatDuration } from "@/lib/insights/formatters";
@@ -80,16 +77,14 @@ function InsightsWidgetInner({ instance }: { instance: WidgetInstance }) {
     }, [focusPoints]);
 
     // Use centralized Insight Engine
-    const context = useDashboardContext();
     const engineInsights = useMemo(
-        () => generateEngineInsights({ focusSessions: sessions, todos: allTodos, projects }, context),
-        [sessions, allTodos, projects, context]
+        () => generateEngineInsights({ focusSessions: sessions, todos: allTodos, projects }),
+        [sessions, allTodos, projects]
     );
     const insights: InsightCard[] = useMemo(
         () => engineInsights.map((ei) => ({
-            text: ei.isPredictive ? ei.description : `${ei.title} — ${ei.description}`,
-            type: ei.isPredictive ? "predictive" as const : (ei.type === "positive" ? "success" as const : ei.type === "warning" ? "warning" as const : "info" as const),
-            isPredictive: ei.isPredictive,
+            text: `${ei.title} — ${ei.description}`,
+            type: ei.type === "positive" ? "success" as const : ei.type === "warning" ? "warning" as const : "info" as const,
         })),
         [engineInsights]
     );

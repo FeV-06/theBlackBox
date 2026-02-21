@@ -4,7 +4,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { FocusSession } from "@/types/widget";
 import { generateId } from "@/lib/utils";
-import { logBehavior } from "@/lib/intelligence/behaviorTracker";
 
 interface FocusState {
     sessions: FocusSession[];
@@ -43,7 +42,6 @@ export const useFocusStore = create<FocusState>()(
             pomodoroCycles: 0,
 
             startSession: () => {
-                logBehavior("focus_start");
                 set({
                     isRunning: true,
                     isPaused: false,
@@ -75,7 +73,6 @@ export const useFocusStore = create<FocusState>()(
                         elapsed: 0,
                         pomodoroPhase: "work",
                     }));
-                    logBehavior("focus_end");
                 } else {
                     set({ isRunning: false, isPaused: false, startTime: null, elapsed: 0 });
                 }

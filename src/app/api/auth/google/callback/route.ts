@@ -39,8 +39,10 @@ export async function GET(request: NextRequest) {
 <script>
   if (window.opener) {
     window.opener.postMessage({ type: "tbb-google-auth", success: true }, "*");
+    setTimeout(() => window.close(), 500);
+  } else {
+    window.location.href = "/dashboard";
   }
-  setTimeout(() => window.close(), 500);
 </script>
 </body></html>`;
 

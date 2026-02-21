@@ -9,18 +9,15 @@
 
 import type { FocusSession, Project } from "@/types/widget";
 import type { TodoItem } from "@/types/widgetInstance";
-import type { DashboardContextValue } from "@/hooks/useDashboardContext";
-import { generatePredictiveInsights } from "../intelligence/predictiveEngine";
 
 /* ── Types ── */
 
 export interface Insight {
     id: string;
-    type: "positive" | "warning" | "info" | "predictive";
+    type: "positive" | "warning" | "info";
     title: string;
     description: string;
     priority: number; // higher = more important, used for sorting
-    isPredictive?: boolean;
 }
 
 export interface InsightInput {
@@ -487,7 +484,7 @@ function productivityScore(input: InsightInput): Insight | null {
 
 /* ── Main Export ── */
 
-export function generateInsights(input: InsightInput, context?: DashboardContextValue): Insight[] {
+export function generateInsights(input: InsightInput): Insight[] {
     const { focusSessions, todos, projects } = input;
 
     const all: (Insight | Insight[] | null)[] = [
@@ -513,22 +510,7 @@ export function generateInsights(input: InsightInput, context?: DashboardContext
         return [...acc, val];
     }, []);
 
-    const sortedStatic = flatInsights
+    return flatInsights
         .sort((a, b) => b.priority - a.priority)
         .slice(0, MAX_INSIGHTS);
-
-    let predictive: Insight[] = [];
-    if (context && context.patterns) {
-        const preds = generatePredictiveInsights(context.patterns, context);
-        predictive = preds.map((p) => ({
-            id: p.id,
-            type: "predictive",
-            title: "SMART",
-            description: p.message,
-            priority: 100, // force top
-            isPredictive: true,
-        }));
-    }
-
-    return [...predictive, ...sortedStatic].slice(0, MAX_INSIGHTS);
 }

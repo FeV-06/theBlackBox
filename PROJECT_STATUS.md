@@ -108,13 +108,6 @@
 - **Focus Tab Density**: Zero-dead-space 3-zone layout. Dominant timer (`flex-[3]`), live stats strip (`flex-[1]`), integrated activity scaling right panel.
 - **Projects Tab Anti-Emptying**: Adaptive grid padding out gaps, combined thin progress bars with inline task previews, fallback Quick Action/Insight panels when `< 3` projects exist.
 
-### ✅ Dashboard Intelligence Layer V1 & V2
-- **Priority Engine**: Real-time evaluation of all dashboard widgets. Automatically applies subtle visual glows and size scaling to items that need attention (e.g., active focus sessions, overdue todos, morning routines).
-- **Behavior Tracker**: Safe, strictly-bounded `localStorage` tracking of events (Task completions, Focus intervals), pruned effectively within a 7-day lookback.
-- **Pattern & Predictive Engine**: Deterministic algorithms that surface behavioral "SMART" patterns, generating dynamic "Focus", "Productivity Burst", and "Recovery" nudges.
-- **Strict Cooldown System**: Prevents insight spam by assigning hour-based `localStorage` timers for SMART nudges.
-- **Combined Intelligence Context**: Efficient centralized React Hook (`useDashboardContext`) avoiding massive re-renders across concurrent dashboard tabs.
-
 ---
 
 ## 3. API Routes Summary

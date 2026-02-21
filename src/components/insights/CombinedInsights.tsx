@@ -27,7 +27,6 @@ const INSIGHT_ICON_COLORS: Record<InsightCard["type"], string> = {
     info: "var(--color-accent)",
     warning: "#FBBF24",
     success: "#4ADE80",
-    predictive: "#A855F7",
 };
 
 export default function CombinedInsights({
@@ -71,6 +70,7 @@ export default function CombinedInsights({
                                 }}
                             />
                             <Line
+                                isAnimationActive={false}
                                 yAxisId="left"
                                 type="monotone"
                                 dataKey="focusMinutes"
@@ -81,6 +81,7 @@ export default function CombinedInsights({
                                 activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }}
                             />
                             <Line
+                                isAnimationActive={false}
                                 yAxisId="right"
                                 type="monotone"
                                 dataKey="tasksCompleted"
@@ -113,10 +114,7 @@ export default function CombinedInsights({
                                 initial={{ opacity: 0, y: 6 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.25, delay: i * 0.05 }}
-                                className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${card.isPredictive
-                                    ? "bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-purple-400/20"
-                                    : "border-white/[0.05] bg-white/[0.01] hover:bg-white/[0.03]"
-                                    }`}
+                                className="flex items-start gap-3 p-3 rounded-xl border border-white/[0.05] bg-white/[0.01] hover:bg-white/[0.03] transition-colors"
                             >
                                 <div
                                     className="p-1.5 rounded-lg bg-white/[0.03] shrink-0"
@@ -125,16 +123,9 @@ export default function CombinedInsights({
                                     <Lightbulb size={13} />
                                 </div>
                                 <div className="flex flex-col flex-1 min-w-0">
-                                    {card.isPredictive && (
-                                        <div className="mb-0.5" style={{ display: "flex" }}>
-                                            <span className="text-[9px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-1.5 py-0.5 rounded leading-none">
-                                                SMART
-                                            </span>
-                                        </div>
-                                    )}
                                     <span
                                         className="text-[11px] leading-relaxed font-medium"
-                                        style={{ color: card.isPredictive ? "#E9D5FF" : "var(--color-text-secondary)" }}
+                                        style={{ color: "var(--color-text-secondary)" }}
                                     >
                                         {card.text}
                                     </span>

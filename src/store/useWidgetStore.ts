@@ -9,7 +9,6 @@ import {
     updateCalendarEventFromTask,
     deleteCalendarEvent
 } from "@/lib/todoCalendarSync";
-import { logBehavior } from "@/lib/intelligence/behaviorTracker";
 
 /* ─── Helpers ─── */
 
@@ -817,7 +816,6 @@ export const useWidgetStore = create<WidgetState>()(
 
                 // --- Todo Actions ---
                 addTodo: (instanceId, text) => {
-                    logBehavior("task_add");
                     const newTodoId = generateId();
                     // Optimistic UI update
                     set((s) => {
@@ -851,14 +849,6 @@ export const useWidgetStore = create<WidgetState>()(
                 },
 
                 toggleTodo: (instanceId, todoId) => {
-                    const inst = get().instances[instanceId];
-                    if (inst && inst.data?.todos) {
-                        const todoToToggle = inst.data.todos.find(t => t.id === todoId);
-                        if (todoToToggle && !todoToToggle.completed) {
-                            logBehavior("task_complete");
-                        }
-                    }
-
                     set((s) => {
                         const sInst = s.instances[instanceId];
                         if (!sInst || !sInst.data?.todos) return s;
@@ -1078,7 +1068,7 @@ export const useWidgetStore = create<WidgetState>()(
             };
         },
         {
-            name: "tbb-widgets",
+            name: typeof window !== "undefined" && window.location.pathname.startsWith("/demo") ? "tbb-demo-widgets" : "tbb-widgets",
             version: 3,
             // Exclude history from persistence — it's runtime-only
             partialize: (state) => ({

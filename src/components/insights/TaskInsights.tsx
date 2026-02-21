@@ -67,7 +67,7 @@ export default function TaskInsights({ stats, isCompact }: TaskInsightsProps) {
                                 paddingAngle={2}
                                 dataKey="value"
                                 stroke="none"
-                                isAnimationActive={true}
+                                isAnimationActive={false}
                             >
                                 {donutData.map((_, i) => (
                                     <Cell key={i} fill={donutColors[i]} />
