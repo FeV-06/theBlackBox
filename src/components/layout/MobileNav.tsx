@@ -45,7 +45,7 @@ export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
                             onClick={() => onTabChange(item.id)}
                             className="relative flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-2xl transition-all"
                             style={{
-                                color: isActive ? "#7C5CFF" : "rgba(255,255,255,0.4)",
+                                color: isActive ? "var(--color-accent)" : "rgba(255,255,255,0.4)",
                             }}
                         >
                             {isActive && (
@@ -53,8 +53,8 @@ export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
                                     layoutId="mobile-nav-active"
                                     className="absolute inset-0 rounded-2xl"
                                     style={{
-                                        background: "rgba(124, 92, 255, 0.1)",
-                                        boxShadow: "0 0 16px rgba(124, 92, 255, 0.12)",
+                                        background: "var(--color-accent-glow)",
+                                        boxShadow: `0 0 16px var(--color-accent-glow)`,
                                     }}
                                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                 />
@@ -63,7 +63,7 @@ export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
                             <span
                                 className="text-[10px] font-medium relative z-10"
                                 style={{
-                                    color: isActive ? "#7C5CFF" : "rgba(255,255,255,0.35)",
+                                    color: isActive ? "var(--color-accent)" : "rgba(255,255,255,0.35)",
                                 }}
                             >
                                 {item.label}

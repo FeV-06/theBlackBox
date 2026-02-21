@@ -6,6 +6,8 @@ import { GripVertical, MoreVertical, Pencil, Copy, Trash2, Check, X, Lock, Unloc
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { PortalMenu } from "@/components/ui/PortalMenu";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useWidgetPriority } from "@/hooks/useWidgetPriority";
+import { useIsMounted } from "@/hooks/useIsMounted";
 import type { WidgetInstance, WidgetTypeDefinition } from "@/types/widgetInstance";
 
 interface WidgetCardProps {
@@ -48,13 +50,18 @@ export default function WidgetCard({
     const [menuOpen, setMenuOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState("");
+    const isMounted = useIsMounted();
     const menuRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const title = instance.title ?? definition.defaultTitle;
     const Icon = definition.icon;
 
-
+    // Contextual Priority
+    const priority = useWidgetPriority(instance);
+    const safeOpacity = priority.score <= 30 ? 0.6 : 1;
+    const isHighPriority = priority.score >= 70;
+    const isVeryHighPriority = priority.score > 85;
 
     // Auto-focus rename input
     useEffect(() => {
@@ -88,16 +95,43 @@ export default function WidgetCard({
 
     const isDivider = instance.type === "section_divider";
 
+    // Use mounted-safe versions of non-deterministic state
+    const effectiveEditMode = isMounted ? dashboardEditMode : false;
+    const isLockedState = isMounted ? (stackCount > 1 ? groupLocked : instance.isLocked) : false;
+
+    // Priority-based dynamic styles - wait for mount to avoid hydration mismatch with persisted settings
+    const motionStyle = {
+        scale: isMounted && isHighPriority && !effectiveEditMode ? 1.015 : 1,
+        boxShadow: isMounted && isHighPriority && !effectiveEditMode && priority.glowColor ? `0 0 18px ${priority.glowColor}33` : undefined,
+        opacity: isMounted && !effectiveEditMode ? safeOpacity : 1,
+    };
+
     return (
-        <div
-            className={`group relative flex flex-col h-full rounded-2xl border transition-all duration-500 ${isDivider ? "overflow-visible" : "overflow-hidden"} ${isDivider
+        <motion.div
+            animate={motionStyle}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className={`group relative flex flex-col h-full rounded-2xl border transition-colors duration-500 ${isDivider ? "overflow-visible" : "overflow-hidden"} ${isDivider
                 ? "border-none shadow-none bg-transparent"
-                : dashboardEditMode
+                : effectiveEditMode
                     ? "border-purple-500/40 bg-purple-500/[0.04] shadow-[0_0_30px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/20"
                     : "bg-[#14141C]/60 border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.55)] backdrop-blur-xl hover:-translate-y-[2px] hover:border-white/15 hover:shadow-[0_0_40px_rgba(124,92,255,0.12)]"
-                } ${(stackCount > 1 ? groupLocked : instance.isLocked) ? "border-white/10 opacity-95 shadow-none ring-0" : ""} ${className}`}
+                } ${isLockedState ? "border-white/10 opacity-95 shadow-none ring-0" : ""} ${className}`}
             style={{ backdropFilter: isDivider ? "none" : "blur(12px)" }}
         >
+            {/* Urgent Badge */}
+            {!dashboardEditMode && isVeryHighPriority && (
+                <div
+                    className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-lg z-50 pointer-events-none"
+                    style={{
+                        backgroundColor: priority.glowColor || "rgba(249, 115, 22, 1)",
+                        color: "#fff",
+                        boxShadow: `0 0 12px ${priority.glowColor || "rgba(249, 115, 22, 1)"}`,
+                    }}
+                >
+                    Urgent
+                </div>
+            )}
+
             {/* Title bar / Drag Handle - HIDDEN for dividers */}
             {!isDivider && (
                 <div
@@ -108,7 +142,7 @@ export default function WidgetCard({
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
                 >
                     {/* Header Accent Gradient */}
-                    <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-[#7C5CFF]/40 via-[#7C5CFF]/10 to-transparent opacity-60 pointer-events-none" />
+                    <div className="absolute top-0 left-0 w-full h-[2px] opacity-60 pointer-events-none" style={{ background: `linear-gradient(to right, var(--color-accent-glow), rgba(255,255,255,0.02), transparent)` }} />
                     {dashboardEditMode ? (
                         <div className={`p-1 rounded ${(stackCount > 1 ? groupLocked : instance.isLocked) ? "bg-white/5 text-white/20" : "bg-purple-500/20 text-purple-300"}`}>
                             <GripVertical size={14} />
@@ -344,6 +378,6 @@ export default function WidgetCard({
                     </div>
                 </div>
             )}
-        </div >
+        </motion.div>
     );
 }

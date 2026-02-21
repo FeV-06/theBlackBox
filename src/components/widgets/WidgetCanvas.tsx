@@ -15,6 +15,7 @@ import type { WidgetInstance } from "@/types/widgetInstance";
 import type { WidgetGroup } from "@/types/widgetGroup";
 import { AlertTriangle } from "lucide-react";
 import StackExpandModal from "./StackExpandModal";
+import { useIsMounted } from "@/hooks/useIsMounted";
 
 /* ── Constants ── */
 const GROUP_PROXIMITY_PX = 40;
@@ -264,6 +265,7 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
 
     // Track Viewport
     const [viewport, setViewport] = useState({ w: 0, h: 0 });
+    const isMounted = useIsMounted();
 
     /* ── Safe Surface Setter (Scroll Preservation) ── */
     const safeSetSurfaceSize = useCallback((next: { w: number; h: number }) => {
@@ -636,6 +638,8 @@ export default function WidgetCanvas({ onNavigate }: WidgetCanvasProps) {
     }, []);
 
     /* ── Render Logic ── */
+    if (!isMounted) return <div className="flex-1" />;
+
     return (
         <div
             ref={scrollRef}

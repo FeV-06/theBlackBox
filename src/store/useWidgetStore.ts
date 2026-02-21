@@ -9,6 +9,7 @@ import {
     updateCalendarEventFromTask,
     deleteCalendarEvent
 } from "@/lib/todoCalendarSync";
+import { logBehavior } from "@/lib/intelligence/behaviorTracker";
 
 /* ─── Helpers ─── */
 
@@ -816,6 +817,7 @@ export const useWidgetStore = create<WidgetState>()(
 
                 // --- Todo Actions ---
                 addTodo: (instanceId, text) => {
+                    logBehavior("task_add");
                     const newTodoId = generateId();
                     // Optimistic UI update
                     set((s) => {
@@ -848,11 +850,19 @@ export const useWidgetStore = create<WidgetState>()(
                     });
                 },
 
-                toggleTodo: (instanceId, todoId) =>
+                toggleTodo: (instanceId, todoId) => {
+                    const inst = get().instances[instanceId];
+                    if (inst && inst.data?.todos) {
+                        const todoToToggle = inst.data.todos.find(t => t.id === todoId);
+                        if (todoToToggle && !todoToToggle.completed) {
+                            logBehavior("task_complete");
+                        }
+                    }
+
                     set((s) => {
-                        const inst = s.instances[instanceId];
-                        if (!inst || !inst.data?.todos) return s;
-                        const todos = inst.data.todos.map((t) =>
+                        const sInst = s.instances[instanceId];
+                        if (!sInst || !sInst.data?.todos) return s;
+                        const todos = sInst.data.todos.map((t) =>
                             t.id === todoId ? { ...t, completed: !t.completed } : t
                         );
                         return {
@@ -860,13 +870,14 @@ export const useWidgetStore = create<WidgetState>()(
                             instances: {
                                 ...s.instances,
                                 [instanceId]: {
-                                    ...inst,
-                                    data: { ...inst.data, todos },
+                                    ...sInst,
+                                    data: { ...sInst.data, todos },
                                     updatedAt: Date.now(),
                                 },
                             },
                         };
-                    }),
+                    });
+                },
 
                 deleteTodo: (instanceId, todoId) => {
                     const inst = get().instances[instanceId];

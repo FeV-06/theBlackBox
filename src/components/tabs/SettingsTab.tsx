@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import {
     Download, Upload, ToggleLeft, ToggleRight, Palette, Puzzle, Trash2,
     LogIn, LogOut, User, Loader2, Plus, Copy, Lock, Unlock,
-    LayoutTemplate, Save
+    LayoutTemplate, Save, Command
 } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
@@ -14,6 +14,8 @@ import type { QuoteVibe } from "@/types/widget";
 import type { WidgetType } from "@/types/widgetInstance";
 import { useTemplateStore } from "@/store/useTemplateStore";
 import { DEFAULT_TEMPLATES, TemplatePreset } from "@/lib/defaultTemplates";
+import { cn } from "@/lib/utils";
+import { useIsMounted } from "@/hooks/useIsMounted";
 
 const VIBES: { value: QuoteVibe; label: string }[] = [
     { value: "motivational", label: "💪 Motivational" },
@@ -24,12 +26,13 @@ const VIBES: { value: QuoteVibe; label: string }[] = [
 
 export default function SettingsTab() {
     const { instances, layout, toggleInstance, removeInstance, addInstance, duplicateInstance, resetToDefaults, toggleInstanceLock } = useWidgetStore();
-    const { quoteVibe, setQuoteVibe, apiWidgets, deleteApiWidget } = useSettingsStore();
+    const { quoteVibe, setQuoteVibe, apiWidgets, deleteApiWidget, commandPaletteTheme, setCommandPaletteTheme } = useSettingsStore();
     const { isConnected, profile, loading, connectWithPopup, disconnect, checkConnection } = useGoogleAuthStore();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState("");
     const [disconnecting, setDisconnecting] = useState(false);
     const [selectedType, setSelectedType] = useState<WidgetType>("todo");
+    const isMounted = useIsMounted();
 
     useEffect(() => { checkConnection(); }, [checkConnection]);
 
@@ -76,11 +79,37 @@ export default function SettingsTab() {
     // Build a map for registry lookup
     const registryMap = new Map(WIDGET_REGISTRY.map((d) => [d.type, d]));
 
+    if (!isMounted) return <div className="animate-pulse space-y-4"><div className="h-8 w-32 bg-white/5 rounded" /><div className="h-64 bg-white/5 rounded-2xl" /></div>;
+
     return (
         <div className="animate-fade-in max-w-3xl mx-auto">
             <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--color-text-primary)" }}>Settings</h1>
 
             <div className="flex flex-col gap-6">
+                {/* Command Palette Theme */}
+                <div className="glass-card p-5 border-l-4" style={{ borderLeftColor: "var(--color-accent)" }}>
+                    <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+                        <Command size={16} style={{ color: "var(--color-accent)" }} /> Command Palette Theme
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                        {(["default", "terminal", "creative", "ai", "focus", "mocha"] as const).map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => setCommandPaletteTheme(t)}
+                                className={cn(
+                                    "px-4 py-2 rounded-xl text-sm transition-all capitalize",
+                                    commandPaletteTheme === t
+                                        ? "" // Use style below
+                                        : "bg-white/[0.03] text-white/70 border border-white/[0.04] hover:bg-white/[0.06]",
+                                )}
+                                style={commandPaletteTheme === t ? { background: "var(--color-accent-glow)", color: "var(--color-accent)", border: "1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)" } : undefined}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Google Account */}
                 <div className="glass-card p-5">
                     <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
@@ -320,7 +349,8 @@ function TemplateManager() {
                             <div className="flex items-center gap-1">
                                 <button
                                     onClick={() => applyTemplate(t.id)}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#7C5CFF]/10 text-[#7C5CFF] hover:bg-[#7C5CFF]/20 transition-colors"
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                    style={{ background: "var(--color-accent-glow)", color: "var(--color-accent)" }}
                                 >
                                     Apply
                                 </button>

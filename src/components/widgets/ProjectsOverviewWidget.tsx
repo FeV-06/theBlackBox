@@ -1,7 +1,7 @@
 "use client";
 
 import { useProjectStore } from "@/store/useProjectStore";
-import { FolderKanban, ArrowRight } from "lucide-react";
+import { FolderKanban, ArrowRight, Trash2 } from "lucide-react";
 import type { TabId } from "@/types/widget";
 import type { WidgetInstance } from "@/types/widgetInstance";
 
@@ -11,8 +11,7 @@ interface ProjectsOverviewWidgetProps {
 }
 
 export default function ProjectsOverviewWidget({ instance, onNavigate }: ProjectsOverviewWidgetProps) {
-    const projects = useProjectStore((s) => s.projects);
-    const topProjects = projects.slice(0, 3);
+    const { projects, deleteProject, setSelectedProjectId } = useProjectStore();
 
     return (
         <div className="flex flex-col h-full gap-3 overflow-hidden">
@@ -33,8 +32,12 @@ export default function ProjectsOverviewWidget({ instance, onNavigate }: Project
                         return (
                             <div
                                 key={project.id}
-                                className="flex flex-col gap-2 p-3 rounded-2xl border border-white/[0.03] transition-all hover:bg-white/[0.02]"
+                                className="group flex flex-col gap-2 p-3 rounded-2xl border border-white/[0.03] transition-all hover:bg-white/[0.02] relative cursor-pointer"
                                 style={{ background: "rgba(255,255,255,0.01)" }}
+                                onClick={() => {
+                                    setSelectedProjectId(project.id);
+                                    onNavigate?.("projects");
+                                }}
                             >
                                 <div className="flex items-center gap-2">
                                     <div
@@ -44,11 +47,23 @@ export default function ProjectsOverviewWidget({ instance, onNavigate }: Project
                                     <span className="text-xs font-bold truncate flex-1 tracking-tight" style={{ color: "var(--color-text-primary)" }}>
                                         {project.name}
                                     </span>
-                                    <span className="text-[10px] font-bold opacity-30">
+                                    <span className="text-[10px] font-bold opacity-30 group-hover:opacity-0 transition-opacity absolute right-4">
                                         {doneTasks}/{totalTasks}
                                     </span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm("Are you sure you want to delete this project? All tasks will be lost.")) {
+                                                deleteProject(project.id);
+                                            }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all absolute right-2 top-1.5"
+                                        title="Delete Project"
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
                                 </div>
-                                <div className="h-1 rounded-full" style={{ background: "rgba(255,255,255,0.04)" }}>
+                                <div className="h-1 rounded-full mt-1" style={{ background: "rgba(255,255,255,0.04)" }}>
                                     <div
                                         className="h-full rounded-full transition-all duration-700 ease-out"
                                         style={{

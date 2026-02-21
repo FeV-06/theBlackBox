@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import type { QuoteVibe, Bookmark, ApiWidgetInstance } from "@/types/widget";
 import type { GmailSettings } from "@/types/gmail";
 import type { GmailPreset } from "@/types/gmailPresets";
+import type { CommandPaletteTheme } from "@/types/commandPalette";
 import { generateId } from "@/lib/utils";
 
 const DEFAULT_GMAIL: GmailSettings = {
@@ -24,12 +25,14 @@ const DEFAULT_GMAIL_PRESETS: GmailPreset[] = [
 ];
 
 interface SettingsState {
+    commandPaletteTheme: CommandPaletteTheme;
     quoteVibe: QuoteVibe;
     bookmarks: Bookmark[];
     apiWidgets: ApiWidgetInstance[];
     gmail: GmailSettings;
     gmailPresets: GmailPreset[];
     dashboardEditMode: boolean;
+    setCommandPaletteTheme: (theme: CommandPaletteTheme) => void;
     setQuoteVibe: (vibe: QuoteVibe) => void;
     addBookmark: (title: string, url: string) => void;
     deleteBookmark: (id: string) => void;
@@ -49,6 +52,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
     persist(
         (set, get) => ({
+            commandPaletteTheme: "default",
             quoteVibe: "motivational",
             bookmarks: [
                 { id: "bk1", title: "GitHub", url: "https://github.com" },
@@ -60,6 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
             gmailPresets: DEFAULT_GMAIL_PRESETS,
             dashboardEditMode: false,
 
+            setCommandPaletteTheme: (theme) => set({ commandPaletteTheme: theme }),
             setQuoteVibe: (vibe) => set({ quoteVibe: vibe }),
             toggleDashboardEditMode: () => set((s) => ({ dashboardEditMode: !s.dashboardEditMode })),
             setDashboardEditMode: (value) => set({ dashboardEditMode: value }),

@@ -4,12 +4,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Project, ProjectTask, ProjectSubtask } from "@/types/widget";
 import { generateId, getTodayStr } from "@/lib/utils";
+import { logBehavior } from "@/lib/intelligence/behaviorTracker";
 
 interface ProjectState {
     projects: Project[];
     addProject: (name: string, description: string, color: string) => void;
     updateProject: (id: string, updates: Partial<Pick<Project, "name" | "description" | "color" | "viewMode">>) => void;
     deleteProject: (id: string) => void;
+
+    // View State
+    selectedProjectId: string | null;
+    setSelectedProjectId: (id: string | null) => void;
 
     // Task Actions
     createTask: (projectId: string, text: string, status?: "todo" | "in_progress" | "done") => void;
@@ -53,6 +58,9 @@ export const useProjectStore = create<ProjectState>()(
     persist(
         (set) => ({
             projects: [],
+            selectedProjectId: null,
+
+            setSelectedProjectId: (id) => set({ selectedProjectId: id }),
 
             addProject: (name, description, color) =>
                 set((s) => ({
@@ -79,7 +87,8 @@ export const useProjectStore = create<ProjectState>()(
             deleteProject: (id) =>
                 set((s) => ({ projects: s.projects.filter((p) => p.id !== id) })),
 
-            createTask: (projectId, text, status = "todo") =>
+            createTask: (projectId, text, status = "todo") => {
+                logBehavior("project_update");
                 set((s) => ({
                     projects: updateProjectInList(s.projects, projectId, (p) => {
                         const targetTasks = p.tasks.filter(t => t.status === status);
@@ -97,9 +106,10 @@ export const useProjectStore = create<ProjectState>()(
                             }],
                         };
                     }),
-                })),
+                }));
+            },
 
-            toggleTask: (projectId, taskId) =>
+            toggleTask: (projectId, taskId) => {
                 set((s) => ({
                     projects: updateProjectInList(s.projects, projectId, (p) =>
                         updateTaskInProject(p, taskId, (t) => {
@@ -120,7 +130,8 @@ export const useProjectStore = create<ProjectState>()(
                             };
                         })
                     ),
-                })),
+                }));
+            },
 
             deleteTask: (projectId, taskId) =>
                 set((s) => ({
@@ -130,12 +141,14 @@ export const useProjectStore = create<ProjectState>()(
                     })),
                 })),
 
-            updateTask: (projectId, taskId, updates) =>
+            updateTask: (projectId, taskId, updates) => {
+                logBehavior("project_update");
                 set((s) => ({
                     projects: updateProjectInList(s.projects, projectId, (p) =>
                         updateTaskInProject(p, taskId, (t) => ({ ...t, ...updates }))
                     ),
-                })),
+                }));
+            },
 
             toggleTaskExpand: (projectId, taskId) =>
                 set((s) => ({

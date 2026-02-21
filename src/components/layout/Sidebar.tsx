@@ -7,9 +7,10 @@ import {
     Focus,
     CalendarDays,
     Settings,
-    Hexagon,
+    User,
 } from "lucide-react";
 import type { TabId } from "@/types/widget";
+import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
 
 interface SidebarProps {
     activeTab: TabId;
@@ -21,20 +22,23 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
     { id: "projects", icon: FolderKanban, label: "Projects" },
     { id: "focus", icon: Focus, label: "Focus" },
     { id: "calendar", icon: CalendarDays, label: "Calendar" },
-    { id: "settings", icon: Settings, label: "Settings" },
 ];
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+    const { isConnected, profile } = useGoogleAuthStore();
+
     return (
         <aside className="fixed left-0 top-0 bottom-0 w-[72px] hidden md:flex flex-col items-center py-6 z-50 tbb-panel"
             style={{
                 background: "rgba(0,0,0,0.3)",
                 borderRight: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 0 60px rgba(0,0,0,0.6)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
+                backdropFilter: "blur(20px)",
             }}
         >
             {/* Glow Strip */}
-            <div className="absolute top-0 right-0 h-full w-[2px] bg-gradient-to-b from-[#7C5CFF]/40 via-[#7C5CFF]/10 to-transparent opacity-60 pointer-events-none" />
+            <div className="absolute top-0 right-0 h-full w-[2px] opacity-60 pointer-events-none" style={{ background: `linear-gradient(to bottom, var(--color-accent-glow), rgba(255,255,255,0.02), transparent)` }} />
+
             {/* Nav icons */}
             <nav className="flex flex-col items-center gap-2 flex-1 mt-4">
                 {navItems.map((item) => {
@@ -46,8 +50,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                             onClick={() => onTabChange(item.id)}
                             className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group hover:bg-white/5 hover:shadow-[0_0_15px_rgba(124,92,255,0.12)]"
                             style={{
-                                background: isActive ? "rgba(124, 92, 255, 0.12)" : "transparent",
-                                color: isActive ? "#7C5CFF" : "rgba(255,255,255,0.4)",
+                                background: isActive ? "var(--color-accent-glow)" : "transparent",
+                                color: isActive ? "var(--color-accent)" : "rgba(255,255,255,0.4)",
                             }}
                             title={item.label}
                         >
@@ -56,32 +60,56 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                                     layoutId="sidebar-active"
                                     className="absolute inset-0 rounded-xl"
                                     style={{
-                                        background: "rgba(124, 92, 255, 0.15)",
-                                        boxShadow: "0 0 25px rgba(124, 92, 255, 0.25)",
-                                        border: "1px solid rgba(124, 92, 255, 0.2)",
+                                        background: "var(--color-accent-glow)",
+                                        boxShadow: `0 0 25px var(--color-accent-glow)`,
+                                        border: `1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)`,
                                     }}
                                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                 />
                             )}
                             <Icon size={22} className="relative z-10" />
-                            {/* Tooltip */}
-                            <span className="absolute left-full ml-3 px-2 py-1 text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap"
-                                style={{ background: "#1B1B22", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.1)" }}
-                            >
-                                {item.label}
-                            </span>
                         </button>
                     );
                 })}
             </nav>
 
-            {/* Logo at bottom */}
-            <div className="mt-auto">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl"
-                    style={{ background: "linear-gradient(135deg, #7C5CFF, #5B3FCC)" }}
+            {/* Bottom Dock */}
+            <div className="mt-auto border-t border-white/[0.04] pt-4 pb-2 w-[80%] flex flex-col items-center gap-3">
+                {/* Settings Button */}
+                <button
+                    onClick={() => onTabChange("settings")}
+                    className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-white/5 hover:shadow-[0_0_15px_rgba(124,92,255,0.12)]"
+                    style={{
+                        background: activeTab === "settings" ? "var(--color-accent-glow)" : "transparent",
+                        color: activeTab === "settings" ? "var(--color-accent)" : "rgba(255,255,255,0.4)",
+                    }}
+                    title="Settings"
                 >
-                    <Hexagon size={20} className="text-white" />
-                </div>
+                    <Settings size={22} className="relative z-10" />
+                </button>
+
+                {/* Profile Block */}
+                <button
+                    onClick={() => { /* Placeholder Modal Logic */ }}
+                    className="relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 hover:ring-2 hover:ring-purple-500/30 hover:scale-105"
+                    title={profile?.name || "Profile"}
+                >
+                    {isConnected && profile?.picture ? (
+                        <img
+                            src={profile.picture}
+                            alt={profile.name || "Profile"}
+                            className="w-full h-full rounded-full object-cover shadow-lg shadow-black/50"
+                            referrerPolicy="no-referrer"
+                        />
+                    ) : (
+                        <div
+                            className="w-full h-full rounded-full flex items-center justify-center shadow-lg shadow-black/50"
+                            style={{ background: `linear-gradient(135deg, var(--color-accent), var(--color-accent-dim))` }}
+                        >
+                            <User size={18} className="text-white" />
+                        </div>
+                    )}
+                </button>
             </div>
         </aside>
     );

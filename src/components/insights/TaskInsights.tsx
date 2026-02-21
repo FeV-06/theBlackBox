@@ -3,6 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { motion } from "framer-motion";
 import type { TaskStats } from "@/types/insights";
+import { useAccentColor } from "@/hooks/useAccentColor";
 
 interface StatBoxProps {
     label: string;
@@ -29,7 +30,6 @@ interface TaskInsightsProps {
     isCompact: boolean;
 }
 
-const DONUT_COLORS = ["#7C5CFF", "rgba(255,255,255,0.08)"];
 const PRIORITY_BARS = [
     { key: "high" as const, label: "High", color: "#F87171" },
     { key: "medium" as const, label: "Medium", color: "#FBBF24" },
@@ -37,6 +37,8 @@ const PRIORITY_BARS = [
 ];
 
 export default function TaskInsights({ stats, isCompact }: TaskInsightsProps) {
+    const accent = useAccentColor();
+    const donutColors = [accent, "rgba(255,255,255,0.08)"];
     const donutData = [
         { name: "Completed", value: stats.completed },
         { name: "Pending", value: stats.pending },
@@ -68,7 +70,7 @@ export default function TaskInsights({ stats, isCompact }: TaskInsightsProps) {
                                 isAnimationActive={true}
                             >
                                 {donutData.map((_, i) => (
-                                    <Cell key={i} fill={DONUT_COLORS[i]} />
+                                    <Cell key={i} fill={donutColors[i]} />
                                 ))}
                             </Pie>
                             <Tooltip

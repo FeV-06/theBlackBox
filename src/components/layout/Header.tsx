@@ -1,129 +1,56 @@
 "use client";
 
-import { Search, User, CheckCircle } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useSettingsStore } from "@/store/useSettingsStore";
-import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
-import { fetchQuote } from "@/lib/utils";
+import { Search } from "lucide-react";
 import { useCommandPalette } from "@/components/CommandPalette";
 
 export default function Header() {
-    const [quote, setQuote] = useState("");
-    const vibe = useSettingsStore((s) => s.quoteVibe);
-    const { isConnected, profile, checkConnection } = useGoogleAuthStore();
     const { open: openPalette } = useCommandPalette();
-
-    useEffect(() => {
-        fetchQuote(vibe).then(setQuote);
-    }, [vibe]);
-
-    useEffect(() => {
-        checkConnection();
-    }, [checkConnection]);
 
     return (
         <header
-            className="relative flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-0 h-auto sm:h-16 shrink-0"
+            className="relative flex items-center px-6 py-0 h-16 shrink-0 z-20"
             style={{
                 background: "rgba(0,0,0,0.25)",
-                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
                 backdropFilter: "blur(20px)",
                 boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
             }}
         >
             {/* Bottom Highlight Strip */}
-            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-[#7C5CFF]/30 via-[#7C5CFF]/10 to-transparent opacity-60 pointer-events-none" />
-            {/* Top row on mobile: search + right icons */}
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-                {/* Search */}
-                <div
-                    className="flex items-center gap-2 px-4 h-10 rounded-xl flex-1 sm:flex-initial sm:w-[280px] transition-all duration-200 focus-within:border-[#7C5CFF]/40 focus-within:shadow-[0_0_30px_rgba(124,92,255,0.20)]"
-                    style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                    }}
+            <div className="absolute bottom-0 left-0 w-full h-[2px] opacity-60 pointer-events-none" style={{ background: `linear-gradient(to right, var(--color-accent-glow), rgba(255,255,255,0.02), transparent)` }} />
+
+            {/* Left Spacer */}
+            <div className="flex-1" />
+
+            {/* Centered Search Bar */}
+            <div className="flex justify-center w-[clamp(320px,40%,600px)]">
+                <button
                     onClick={openPalette}
+                    className="
+                        flex items-center gap-3 px-4 w-full h-10
+                        bg-white/[0.04] backdrop-blur-lg
+                        border border-white/[0.08]
+                        rounded-xl
+                        transition-all duration-200 ease-out
+                        hover:border-purple-400/40 hover:bg-white/[0.06] hover:shadow-[0_0_20px_rgba(124,92,255,0.15)]
+                        focus-within:border-purple-500 focus-within:bg-white/[0.08] 
+                        focus-within:ring-2 focus-within:ring-purple-500/30
+                        focus-within:scale-[1.02] active:scale-[0.98]
+                        group
+                    "
                 >
-                    <Search size={16} className="text-[color:var(--color-text-muted)]" />
-                    <input
-                        type="text"
-                        placeholder="Search... (Ctrl+K)"
-                        readOnly
-                        className="bg-transparent text-sm outline-none flex-1 placeholder:text-[color:var(--color-text-muted)] cursor-pointer"
-                        style={{ color: "var(--color-text-primary)" }}
-                    />
-                </div>
-
-                {/* Google badge + avatar (always visible, right-aligned on mobile) */}
-                <div className="flex items-center gap-2 ml-auto sm:ml-0 sm:hidden">
-                    {isConnected && (
-                        <div
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
-                            style={{
-                                background: "rgba(74,222,128,0.1)",
-                                color: "#4ADE80",
-                                border: "1px solid rgba(74,222,128,0.15)",
-                            }}
-                        >
-                            <CheckCircle size={12} />
-                        </div>
-                    )}
-                    {isConnected && profile?.picture ? (
-                        <img
-                            src={profile.picture}
-                            alt={profile.name || "Profile"}
-                            className="w-8 h-8 rounded-full flex-shrink-0 object-cover"
-                            referrerPolicy="no-referrer"
-                        />
-                    ) : (
-                        <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg, #7C5CFF, #5B3FCC)" }}
-                        >
-                            <User size={16} className="text-white" />
-                        </div>
-                    )}
-                </div>
+                    <Search size={16} className="text-white/40 group-hover:text-white/70 transition-colors" />
+                    <span className="flex-1 text-left text-sm text-white/50 group-hover:text-white/80 transition-colors">
+                        Search anything...
+                    </span>
+                    <span className="text-[10px] font-bold text-white/20 bg-white/5 px-1.5 py-0.5 rounded tracking-widest uppercase">
+                        Ctrl+K
+                    </span>
+                </button>
             </div>
 
-            {/* Quote — hidden on mobile */}
-            <div className="hidden sm:block flex-1 text-center px-4 overflow-hidden">
-                <p className="text-sm truncate" style={{ color: "var(--color-text-secondary)" }}>
-                    {quote || "Loading..."}
-                </p>
-            </div>
-
-            {/* Desktop-only badge + avatar */}
-            <div className="hidden sm:flex items-center gap-3">
-                {isConnected && (
-                    <div
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
-                        style={{
-                            background: "rgba(74,222,128,0.1)",
-                            color: "#4ADE80",
-                            border: "1px solid rgba(74,222,128,0.15)",
-                        }}
-                    >
-                        <CheckCircle size={12} />
-                        Google
-                    </div>
-                )}
-                {isConnected && profile?.picture ? (
-                    <img
-                        src={profile.picture}
-                        alt={profile.name || "Profile"}
-                        className="w-9 h-9 rounded-full flex-shrink-0 cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-purple-500/30 object-cover"
-                        referrerPolicy="no-referrer"
-                    />
-                ) : (
-                    <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-purple-500/30"
-                        style={{ background: "linear-gradient(135deg, #7C5CFF, #5B3FCC)" }}
-                    >
-                        <User size={18} className="text-white" />
-                    </div>
-                )}
-            </div>
-        </header >
+            {/* Right Spacer */}
+            <div className="flex-1" />
+        </header>
     );
 }

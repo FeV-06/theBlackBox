@@ -8,6 +8,8 @@ import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useNavigationStore } from "@/store/useNavigationStore";
 import { getCommands, Command } from "@/lib/commandPaletteCommands";
+import { COMMAND_PALETTE_THEMES } from "@/lib/commandPaletteThemes";
+import { cn } from "@/lib/utils";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -57,6 +59,10 @@ export default function CommandPalette() {
     const widgetStore = useWidgetStore();
     const settingsStore = useSettingsStore();
     const { activeTab, setActiveTab } = useNavigationStore();
+
+    const theme = settingsStore.commandPaletteTheme;
+    const themeConfig = COMMAND_PALETTE_THEMES[theme] || COMMAND_PALETTE_THEMES.default;
+    const itemPadding = themeConfig.density === "compact" ? "py-1.5 px-2" : "py-2.5 px-3";
 
     const [search, setSearch] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -196,7 +202,7 @@ export default function CommandPalette() {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.96, y: -10 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="relative w-full max-w-[560px] max-h-[70vh] flex flex-col rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-[0_0_40px_rgba(124,92,255,0.25)] overflow-hidden"
+                        className={cn("relative w-full max-w-[560px] max-h-[70vh] flex flex-col rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-[0_0_40px_rgba(124,92,255,0.25)] overflow-hidden", themeConfig.container)}
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={handleKeyDown}
                     >
@@ -209,7 +215,7 @@ export default function CommandPalette() {
                                 placeholder="Search commands..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="flex-1 bg-transparent text-lg text-white placeholder:text-white/30 outline-none"
+                                className={cn("flex-1 bg-transparent text-lg text-white placeholder:text-white/30 outline-none", themeConfig.input)}
                                 autoFocus
                             />
                             <div className="flex items-center gap-1">
@@ -264,14 +270,14 @@ export default function CommandPalette() {
                                                                         data-index={flatList.indexOf(cmd)}
                                                                         onClick={() => runCommand(cmd)}
                                                                         onMouseEnter={() => setSelectedIndex(flatList.indexOf(cmd))}
-                                                                        className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-left transition-all duration-200 ${isSelected
+                                                                        className={cn(`w-full flex items-center justify-between rounded-xl text-left transition-all duration-200 ${itemPadding} ${isSelected
                                                                             ? "bg-white/10 text-white shadow-[0_0_15px_rgba(124,92,255,0.15)]"
                                                                             : "text-white/70 hover:bg-white/5"
-                                                                            }`}
+                                                                            }`, themeConfig.item)}
                                                                     >
                                                                         <div className="flex items-center gap-3">
                                                                             <div className={`p-1.5 rounded-lg ${isSelected ? "text-[#a78bfa]" : "text-white/50"}`}>
-                                                                                {cmd.icon}
+                                                                                {themeConfig.showIcons && cmd.icon}
                                                                             </div>
                                                                             <div>
                                                                                 <div className="text-sm font-medium leading-none mb-1">

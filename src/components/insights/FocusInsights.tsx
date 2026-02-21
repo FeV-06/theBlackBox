@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { FocusPoint } from "@/types/insights";
 import { formatDayLabel, formatDuration, formatDateFull } from "@/lib/insights/formatters";
+import { useAccentColor, hexToRgba } from "@/hooks/useAccentColor";
 
 interface StatBoxProps {
     label: string;
@@ -42,6 +43,7 @@ export default function FocusInsights({
     bestDay,
     isCompact,
 }: FocusInsightsProps) {
+    const accent = useAccentColor();
     const maxMin = Math.max(...data.map((d) => d.minutes), 1);
 
     return (
@@ -61,7 +63,7 @@ export default function FocusInsights({
                                         background:
                                             intensity === 0
                                                 ? "rgba(255,255,255,0.04)"
-                                                : `rgba(124,92,255,${0.15 + intensity * 0.85})`,
+                                                : hexToRgba(accent, 0.15 + intensity * 0.85),
                                     }}
                                 />
                             );
@@ -77,8 +79,8 @@ export default function FocusInsights({
                         <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
                             <defs>
                                 <linearGradient id="focusAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="rgba(124,92,255,0.3)" />
-                                    <stop offset="100%" stopColor="rgba(124,92,255,0)" />
+                                    <stop offset="0%" stopColor={hexToRgba(accent, 0.3)} />
+                                    <stop offset="100%" stopColor={hexToRgba(accent, 0)} />
                                 </linearGradient>
                             </defs>
                             <XAxis
@@ -104,11 +106,11 @@ export default function FocusInsights({
                                 isAnimationActive={true}
                                 type="monotone"
                                 dataKey="minutes"
-                                stroke="#7C5CFF"
+                                stroke={accent}
                                 strokeWidth={2}
                                 fill="url(#focusAreaGrad)"
-                                dot={{ fill: "#7C5CFF", r: 2, strokeWidth: 0 }}
-                                activeDot={{ r: 4, fill: "#7C5CFF", stroke: "#fff", strokeWidth: 1 }}
+                                dot={{ fill: accent, r: 2, strokeWidth: 0 }}
+                                activeDot={{ r: 4, fill: accent, stroke: "#fff", strokeWidth: 1 }}
                             />
                         </AreaChart>
                     </ResponsiveContainer>

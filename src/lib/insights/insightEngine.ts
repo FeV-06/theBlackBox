@@ -9,15 +9,18 @@
 
 import type { FocusSession, Project } from "@/types/widget";
 import type { TodoItem } from "@/types/widgetInstance";
+import type { DashboardContextValue } from "@/hooks/useDashboardContext";
+import { generatePredictiveInsights } from "../intelligence/predictiveEngine";
 
 /* ── Types ── */
 
 export interface Insight {
     id: string;
-    type: "positive" | "warning" | "info";
+    type: "positive" | "warning" | "info" | "predictive";
     title: string;
     description: string;
     priority: number; // higher = more important, used for sorting
+    isPredictive?: boolean;
 }
 
 export interface InsightInput {
@@ -134,22 +137,43 @@ function weeklyFocusTrend(sessions: FocusSession[]): Insight | null {
     };
 }
 
-/** 3. Todo completion rate */
-function todoCompletion(todos: TodoItem[]): Insight | null {
-    if (todos.length === 0) return null;
+/** 3. Todo completion rate & High Completion Signal */
+function todoCompletion(todos: TodoItem[]): Insight[] {
+    if (todos.length === 0) return [];
 
+    const results: Insight[] = [];
     const completed = todos.filter((t) => t.completed).length;
-    const rate = Math.round((completed / todos.length) * 100);
 
+    // High Completion Rule
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayTodos = todos.filter(t =>
+        (t.completed && toDateStr(t.createdAt || 0) === todayStr) || // simplistic fallback
+        (!t.completed && t.dueDate === todayStr)
+    );
+
+    const todayCompleted = todayTodos.filter(t => t.completed).length;
+    if (todayTodos.length >= 5 && (todayCompleted / todayTodos.length) >= 0.8) {
+        results.push({
+            id: "high-completion",
+            type: "positive",
+            title: "Strong Execution",
+            description: `You've completed ${Math.round((todayCompleted / todayTodos.length) * 100)}% of your tasks today. Great work!`,
+            priority: 9,
+        });
+    }
+
+    const rate = Math.round((completed / todos.length) * 100);
     const type = rate >= 70 ? "positive" : rate >= 40 ? "info" : "warning";
 
-    return {
+    results.push({
         id: "todo-completion",
         type,
         title: `${rate}% Completion Rate`,
         description: `${completed} of ${todos.length} tasks completed`,
         priority: rate >= 70 ? 5 : 6,
-    };
+    });
+
+    return results;
 }
 
 /** 4. Overdue tasks */
@@ -339,6 +363,80 @@ function patternHighCompletionLowFocus(
     return null;
 }
 
+/** 9b. Low Focus Alert */
+function lowFocusAlert(sessions: FocusSession[]): Insight | null {
+    const hour = new Date().getHours();
+    if (hour < 18) return null; // Only alert in the evening
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const focusSessionsToday = sessions.filter(
+        (s) => new Date(s.startTime).toISOString().slice(0, 10) === todayStr
+    ).length;
+
+    if (focusSessionsToday === 0) {
+        return {
+            id: "low-focus-alert",
+            type: "warning",
+            title: "Low Focus Today",
+            description: "You haven't explicitly focused today. Try a quick 15-minute session to build the habit.",
+            priority: 8,
+        };
+    }
+    return null;
+}
+
+/** 9c. Momentum Signal */
+function momentumSignal(sessions: FocusSession[]): Insight | null {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const focusSessionsToday = sessions.filter(
+        (s) => new Date(s.startTime).toISOString().slice(0, 10) === todayStr
+    ).length;
+
+    if (focusSessionsToday >= 2) {
+        return {
+            id: "momentum-signal",
+            type: "positive",
+            title: "Building Momentum",
+            description: `You've completed ${focusSessionsToday} focus sessions today. You're in the zone!`,
+            priority: 7,
+        };
+    }
+    return null;
+}
+
+/** 9d. Stalled Projects Alert */
+function stalledProjectsAlert(projects: Project[]): Insight | null {
+    if (projects.length === 0) return null;
+
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const now = Date.now();
+    let stalledCount = 0;
+
+    projects.forEach(p => {
+        // Check for uncompleted tasks
+        const hasIncomplete = p.tasks.some(t => t.status !== "done" || t.subtasks?.some(st => !st.completed));
+        if (!hasIncomplete) return;
+
+        if (p.lastWorkedDate) {
+            const lastWorked = new Date(p.lastWorkedDate).getTime();
+            if (Math.floor((now - lastWorked) / MS_PER_DAY) > 3) stalledCount++;
+        } else {
+            if (Math.floor((now - p.createdAt) / MS_PER_DAY) > 3) stalledCount++;
+        }
+    });
+
+    if (stalledCount > 0) {
+        return {
+            id: "stalled-projects",
+            type: "warning",
+            title: "Projects Stalled",
+            description: `${stalledCount} active project${stalledCount > 1 ? "s are" : " is"} stalled. Consider breaking tasks down.`,
+            priority: 8,
+        };
+    }
+    return null;
+}
+
 /** 10. Productivity Score (0–100) */
 function productivityScore(input: InsightInput): Insight | null {
     const { focusSessions, todos, projects } = input;
@@ -389,10 +487,10 @@ function productivityScore(input: InsightInput): Insight | null {
 
 /* ── Main Export ── */
 
-export function generateInsights(input: InsightInput): Insight[] {
+export function generateInsights(input: InsightInput, context?: DashboardContextValue): Insight[] {
     const { focusSessions, todos, projects } = input;
 
-    const all: (Insight | null)[] = [
+    const all: (Insight | Insight[] | null)[] = [
         productivityScore(input),
         overdueTasks(todos),
         patternHighFocusLowCompletion(focusSessions, todos),
@@ -403,10 +501,34 @@ export function generateInsights(input: InsightInput): Insight[] {
         projectProgress(projects),
         mostActiveProject(projects),
         patternHighCompletionLowFocus(focusSessions, todos),
+        lowFocusAlert(focusSessions),
+        momentumSignal(focusSessions),
+        stalledProjectsAlert(projects)
     ];
 
-    return all
-        .filter((insight): insight is Insight => insight !== null)
+    // Flatten insights (todoCompletion returns an array now)
+    const flatInsights: Insight[] = all.reduce<Insight[]>((acc, val) => {
+        if (val === null) return acc;
+        if (Array.isArray(val)) return [...acc, ...val];
+        return [...acc, val];
+    }, []);
+
+    const sortedStatic = flatInsights
         .sort((a, b) => b.priority - a.priority)
         .slice(0, MAX_INSIGHTS);
+
+    let predictive: Insight[] = [];
+    if (context && context.patterns) {
+        const preds = generatePredictiveInsights(context.patterns, context);
+        predictive = preds.map((p) => ({
+            id: p.id,
+            type: "predictive",
+            title: "SMART",
+            description: p.message,
+            priority: 100, // force top
+            isPredictive: true,
+        }));
+    }
+
+    return [...predictive, ...sortedStatic].slice(0, MAX_INSIGHTS);
 }

@@ -14,7 +14,8 @@ import {
     EyeOff,
     Eye,
     LayoutGrid,
-    List
+    List,
+    BarChart2
 } from "lucide-react";
 import { useProjectStore } from "@/store/useProjectStore";
 import type { Project, ProjectTask, ProjectSubtask } from "@/types/widget";
@@ -25,7 +26,7 @@ const PROJECT_COLORS = ["#7C5CFF", "#4ADE80", "#F87171", "#FBBF24", "#38BDF8", "
 function ProjectDetail({ project, onBack }: { project: Project; onBack: () => void }) {
     const {
         createTask, toggleTask, deleteTask, updateTask, toggleTaskExpand,
-        createSubtask, toggleSubtask, deleteSubtask, updateSubtask, recordWork, updateProject
+        createSubtask, toggleSubtask, deleteSubtask, updateSubtask, recordWork, updateProject, deleteProject
     } = useProjectStore();
 
     const [taskInput, setTaskInput] = useState("");
@@ -152,14 +153,28 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                     </button>
                 </div>
 
-                <button
-                    onClick={() => setHideCompleted(!hideCompleted)}
-                    className="h-10 px-3 flex items-center justify-center rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-all"
-                    style={{ color: hideCompleted ? "var(--color-accent)" : "var(--color-text-secondary)" }}
-                    title="Hide completed items"
-                >
-                    {hideCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setHideCompleted(!hideCompleted)}
+                        className="h-10 px-3 flex items-center justify-center rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-all"
+                        style={{ color: hideCompleted ? "var(--color-accent)" : "var(--color-text-secondary)" }}
+                        title="Hide completed items"
+                    >
+                        {hideCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this project? All tasks will be lost.")) {
+                                deleteProject(project.id);
+                                onBack();
+                            }
+                        }}
+                        className="h-10 px-3 flex items-center justify-center rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-all text-red-500"
+                        title="Delete project"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             </div>
 
             <div className="flex gap-2 mb-6">
@@ -394,8 +409,7 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
 }
 
 export default function ProjectsTab() {
-    const { projects, addProject, deleteProject } = useProjectStore();
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const { projects, addProject, deleteProject, selectedProjectId: selectedId, setSelectedProjectId: setSelectedId } = useProjectStore();
     const [showCreate, setShowCreate] = useState(false);
     const [name, setName] = useState("");
     const [desc, setDesc] = useState("");
@@ -415,20 +429,26 @@ export default function ProjectsTab() {
         setShowCreate(false);
     };
 
+    // Calculate global stats for the fallback insights panel
+    const totalProjects = projects.length;
+    const activeStreaks = projects.filter(p => p.streakDays > 0).length;
+    const globalTasks = projects.reduce((acc, p) => acc + p.tasks.length + p.tasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0), 0);
+    const globalCompleted = projects.reduce((acc, p) => acc + p.tasks.filter(t => t.status === "done").length + p.tasks.reduce((sum, t) => sum + (t.subtasks?.filter(st => st.completed).length || 0), 0), 0);
+    const globalProgress = globalTasks > 0 ? (globalCompleted / globalTasks) * 100 : 0;
+
     return (
-        <div className="animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col h-full w-full animate-fade-in p-1">
+            <div className="flex-none flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
                         Projects
                     </h1>
-                    <p className="text-sm mt-1" style={{ color: "var(--color-text-secondary)" }}>
-                        Manage your projects with tasks and subtasks
-                    </p>
                 </div>
-                <button onClick={() => setShowCreate(true)} className="btn-accent flex items-center gap-2">
-                    <Plus size={16} /> New Project
-                </button>
+                {!showCreate && (
+                    <button onClick={() => setShowCreate(true)} className="btn-accent flex items-center gap-2">
+                        <Plus size={16} /> New Project
+                    </button>
+                )}
             </div>
 
             {/* Create form */}
@@ -436,7 +456,7 @@ export default function ProjectsTab() {
                 <motion.div
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="glass-card p-5 mb-6"
+                    className="flex-none bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-5 mb-6"
                 >
                     <h3 className="text-sm font-medium mb-3" style={{ color: "var(--color-text-primary)" }}>
                         Create Project
@@ -478,81 +498,131 @@ export default function ProjectsTab() {
                 </motion.div>
             )}
 
-            {/* Projects grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <AnimatePresence>
-                    {projects.map((project) => {
-                        const projectTotalItems = project.tasks.length + project.tasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0);
-                        const projectCompletedItems = project.tasks.filter(t => t.status === "done").length +
-                            project.tasks.reduce((sum, t) => sum + (t.subtasks?.filter(st => st.completed).length || 0), 0);
-                        const pct = projectTotalItems > 0 ? (projectCompletedItems / projectTotalItems) * 100 : 0;
+            {/* Scrollable Container for Grid */}
+            <div className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 ${projects.length < 3 ? "flex flex-col justify-center" : ""}`}>
+                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${projects.length < 3 ? "max-w-5xl mx-auto w-full" : ""}`}>
 
-                        return (
-                            <motion.div
-                                key={project.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="glass-card p-5 cursor-pointer group"
-                                onClick={() => setSelectedId(project.id)}
-                            >
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full" style={{ background: project.color }} />
-                                        <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                                            {project.name}
-                                        </h3>
+                    <AnimatePresence>
+                        {projects.map((project) => {
+                            const projectTotalItems = project.tasks.length + project.tasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0);
+                            const projectCompletedItems = project.tasks.filter(t => t.status === "done").length +
+                                project.tasks.reduce((sum, t) => sum + (t.subtasks?.filter(st => st.completed).length || 0), 0);
+                            const pct = projectTotalItems > 0 ? (projectCompletedItems / projectTotalItems) * 100 : 0;
+
+                            // Get first 2 tasks for inline preview
+                            const inlineTasks = project.tasks.slice(0, 2);
+
+                            return (
+                                <motion.div
+                                    key={project.id}
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-4 cursor-pointer group flex flex-col hover:bg-white/[0.05] transition-colors h-[180px]"
+                                    onClick={() => setSelectedId(project.id)}
+                                >
+                                    {/* Header Row */}
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2 max-w-[70%]">
+                                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: project.color, boxShadow: `0 0 10px ${project.color}50` }} />
+                                            <h3 className="text-sm font-bold truncate text-white/90 group-hover:text-white transition-colors">
+                                                {project.name}
+                                            </h3>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {project.streakDays > 0 ? (
+                                                <span className="flex items-center gap-1 text-[10px] font-bold text-[#FBBF24] bg-[#FBBF24]/10 px-1.5 py-0.5 rounded">
+                                                    <Flame size={10} /> {project.streakDays}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Today</span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        {project.streakDays > 0 && (
-                                            <span className="flex items-center gap-0.5 text-xs" style={{ color: "var(--color-warning)" }}>
-                                                <Flame size={11} /> {project.streakDays}
-                                            </span>
+
+                                    {/* Inline Tasks Preview (Fills middle) */}
+                                    <div className="flex-1 flex flex-col gap-1.5 mt-2 overflow-hidden mask-bottom">
+                                        {inlineTasks.length > 0 ? (
+                                            inlineTasks.map(t => (
+                                                <div key={t.id} className="flex items-center gap-2 text-xs">
+                                                    <div className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border ${t.status === 'done' ? `bg-[${project.color}] border-transparent` : 'border-white/20'}`}>
+                                                        {t.status === 'done' && <Check size={8} className="text-white" />}
+                                                    </div>
+                                                    <span className={`truncate ${t.status === 'done' ? 'text-white/30 line-through' : 'text-white/60'}`}>
+                                                        {t.text}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <span className="text-xs font-medium text-white/20 italic mt-1">No tasks yet</span>
                                         )}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                deleteProject(project.id);
-                                            }}
-                                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/5"
-                                            style={{ color: "var(--color-danger)" }}
-                                        >
-                                            <Trash2 size={13} />
-                                        </button>
                                     </div>
+
+                                    {/* Footer / Progress */}
+                                    <div className="mt-auto pt-3 border-t border-white/[0.04]">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[10px] font-bold tracking-widest uppercase text-white/40">Progress</span>
+                                            <span className="text-[10px] font-bold text-white/60">{projectCompletedItems}/{projectTotalItems}</span>
+                                        </div>
+                                        <div className="w-full h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-500"
+                                                style={{ width: `${pct}%`, background: project.color, boxShadow: `0 0 10px ${project.color}50` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </AnimatePresence>
+
+                    {/* ALWAYS FILL EMPTY SPACES */}
+                    {projects.length < 3 && (
+                        <>
+                            {/* Fill Slot 1: Insights Panel */}
+                            <motion.div
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
+                                className="bg-white/[0.02] border border-white/[0.04] border-dashed rounded-2xl p-4 flex flex-col h-[180px]"
+                            >
+                                <div className="flex items-center gap-2 mb-4 opacity-50">
+                                    <BarChart2 size={14} className="text-white" />
+                                    <span className="text-[10px] font-bold tracking-widest uppercase text-white">Workspace Pulse</span>
                                 </div>
-                                {project.description && (
-                                    <p className="text-xs mb-3 line-clamp-2" style={{ color: "var(--color-text-secondary)" }}>
-                                        {project.description}
-                                    </p>
-                                )}
-                                <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                        <div
-                                            className="h-full rounded-full transition-all"
-                                            style={{ width: `${pct}%`, background: project.color }}
-                                        />
+                                <div className="flex-1 flex flex-col justify-center gap-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-white/40">Total Projects</span>
+                                        <span className="text-sm font-mono font-bold text-white/80">{totalProjects}</span>
                                     </div>
-                                    <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                                        {projectCompletedItems}/{projectTotalItems}
-                                    </span>
-                                    <ChevronRight size={14} style={{ color: "var(--color-text-muted)" }} />
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-white/40">Active Streaks</span>
+                                        <span className="text-sm font-mono font-bold text-[#FBBF24]">{activeStreaks}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-white/40">Global Completion</span>
+                                        <span className="text-sm font-mono font-bold text-[#4ADE80]">{Math.round(globalProgress)}%</span>
+                                    </div>
                                 </div>
                             </motion.div>
-                        );
-                    })}
-                </AnimatePresence>
-            </div>
 
-            {projects.length === 0 && !showCreate && (
-                <div className="text-center py-16">
-                    <FolderKanban size={48} className="mx-auto mb-4" style={{ color: "var(--color-text-muted)" }} />
-                    <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                        No projects yet. Click &quot;New Project&quot; to get started!
-                    </p>
+                            {/* Fill Slot 2: Quick Actions (only if we only have 0 or 1 projects to keep it to max 3 items) */}
+                            {projects.length < 2 && (
+                                <motion.div
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                                    className="bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 flex flex-col h-[180px] items-center justify-center text-center gap-3 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                    onClick={() => setShowCreate(true)}
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center mb-1">
+                                        <Plus size={20} className="text-white/60" />
+                                    </div>
+                                    <span className="text-sm font-bold text-white/60">Create a New Project</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Quick Action</span>
+                                </motion.div>
+                            )}
+                        </>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
