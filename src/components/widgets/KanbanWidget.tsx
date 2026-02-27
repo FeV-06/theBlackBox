@@ -26,10 +26,10 @@ function KanbanWidgetInner({ instance }: KanbanWidgetProps) {
     // No project selected → show selector
     if (!project) {
         return (
-            <div className="flex flex-col h-full p-4 gap-3">
+            <div className="flex flex-col h-full p-4 @md/kanban:p-6 @xl/kanban:p-8 gap-3 @md/kanban:gap-4 @container/kanban">
                 <div className="flex items-center gap-2 mb-1">
-                    <LayoutGrid size={16} style={{ color: "var(--color-accent)" }} />
-                    <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    <LayoutGrid className="w-4 h-4 @md/kanban:w-5 @md/kanban:h-5 @xl/kanban:w-6 @xl/kanban:h-6" style={{ color: "var(--color-accent)" }} />
+                    <span className="text-sm @md/kanban:text-base @xl/kanban:text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
                         Kanban Board
                     </span>
                 </div>
@@ -68,11 +68,11 @@ function KanbanWidgetInner({ instance }: KanbanWidgetProps) {
 
     // Project selected → render kanban
     return (
-        <div className="flex flex-col h-full overflow-hidden" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="flex flex-col h-full overflow-hidden @container/kanban" onPointerDown={(e) => e.stopPropagation()}>
             {/* Header with project selector */}
-            <div className="flex items-center gap-2 px-3 py-2 shrink-0 border-b border-white/[0.05]">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: project.color }} />
-                <span className="text-xs font-bold truncate" style={{ color: "var(--color-text-primary)" }}>
+            <div className="flex items-center gap-2 px-3 py-2 @md/kanban:px-4 @md/kanban:py-3 @xl/kanban:px-5 @xl/kanban:py-4 shrink-0 border-b border-white/[0.05]">
+                <div className="w-2.5 h-2.5 @md/kanban:w-3 @md/kanban:h-3 @xl/kanban:w-4 @xl/kanban:h-4 rounded-full shrink-0 transition-all" style={{ background: project.color }} />
+                <span className="text-xs @md/kanban:text-sm @xl/kanban:text-base font-bold truncate transition-all" style={{ color: "var(--color-text-primary)" }}>
                     {project.name}
                 </span>
 

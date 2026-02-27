@@ -26,38 +26,38 @@ export default function FocusSummaryWidget({ instance }: { instance: WidgetInsta
     const maxHours = Math.max(...weekData.map((d) => d.hours), 1);
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 @md:gap-6 @xl:gap-8 h-full justify-center @container">
             {/* Today summary */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 @md:gap-4 @xl:gap-5">
                 <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    className="w-10 h-10 @md:w-14 @md:h-14 @xl:w-16 @xl:h-16 rounded-xl flex items-center justify-center transition-all"
                     style={{ background: "rgba(124,92,255,0.12)" }}
                 >
-                    <Timer size={20} style={{ color: "var(--color-accent)" }} />
+                    <Timer className="w-5 h-5 @md:w-7 @md:h-7 @xl:w-8 @xl:h-8 transition-all" style={{ color: "var(--color-accent)" }} />
                 </div>
                 <div>
-                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Today</p>
-                    <p className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    <p className="text-xs @md:text-sm @xl:text-base transition-all" style={{ color: "var(--color-text-muted)" }}>Today</p>
+                    <p className="text-lg @md:text-2xl @xl:text-3xl font-semibold transition-all" style={{ color: "var(--color-text-primary)" }}>
                         {formatTime(todaySeconds)}
                     </p>
                 </div>
             </div>
 
             {/* Mini bar chart */}
-            <div className="flex items-end gap-1 h-16">
+            <div className="flex items-end gap-1 @md:gap-2 @xl:gap-3 h-16 @md:h-28 @xl:h-40 transition-all">
                 {weekData.map((d) => (
                     <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                         <div
                             className="w-full rounded-t-md transition-all duration-500"
                             style={{
-                                height: `${Math.max((d.hours / maxHours) * 48, 2)}px`,
+                                height: `${Math.max((d.hours / maxHours) * 100, 4)}%`,
                                 background:
                                     d.day === today
                                         ? "var(--color-accent)"
                                         : "rgba(124,92,255,0.25)",
                             }}
                         />
-                        <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                        <span className="text-[10px] @md:text-xs @xl:text-sm transition-all" style={{ color: "var(--color-text-muted)" }}>
                             {d.label}
                         </span>
                     </div>

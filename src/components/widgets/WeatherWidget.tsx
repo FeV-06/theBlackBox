@@ -87,51 +87,51 @@ export default function WeatherWidget({ instance }: { instance: WidgetInstance }
     }, [city]);
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 @md:gap-4 @xl:gap-6 h-full @container">
             {/* City input */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 @md:gap-3">
                 <input
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && fetchWeather()}
                     placeholder="Enter city..."
-                    className="flex-1 bg-white/[0.03] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[color:var(--color-accent)] transition-colors"
+                    className="flex-1 bg-white/[0.03] border border-[color:var(--color-border)] rounded-lg px-3 py-2 @md:px-4 @md:py-3 @xl:px-5 @xl:py-4 text-sm @md:text-base @xl:text-lg outline-none focus:border-[color:var(--color-accent)] transition-all"
                     style={{ color: "var(--color-text-primary)" }}
                 />
-                <button onClick={fetchWeather} className="btn-accent px-3 py-2" disabled={loading}>
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                <button onClick={fetchWeather} className="btn-accent px-3 py-2 @md:px-4 @md:py-3 @xl:px-5 @xl:py-4 transition-all" disabled={loading}>
+                    {loading ? <Loader2 className="w-3.5 h-3.5 @md:w-4 @md:h-4 @xl:w-5 @xl:h-5 animate-spin" /> : <Search className="w-3.5 h-3.5 @md:w-4 @md:h-4 @xl:w-5 @xl:h-5" />}
                 </button>
             </div>
 
             {error && <p className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</p>}
 
             {weather && (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 @md:gap-4 @xl:gap-6 flex-1 justify-center">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{cityName}</p>
-                            <p className="text-3xl font-bold" style={{ color: "var(--color-text-primary)" }}>
+                            <p className="text-xs @md:text-sm @xl:text-base transition-all" style={{ color: "var(--color-text-muted)" }}>{cityName}</p>
+                            <p className="text-3xl @md:text-5xl @xl:text-6xl font-bold transition-all" style={{ color: "var(--color-text-primary)" }}>
                                 {Math.round(weather.temperature)}°C
                             </p>
                         </div>
-                        <CloudSun size={36} style={{ color: "var(--color-accent)" }} />
+                        <CloudSun className="w-9 h-9 @md:w-14 @md:h-14 @xl:w-16 @xl:h-16 transition-all" style={{ color: "var(--color-accent)" }} />
                     </div>
-                    <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                    <p className="text-sm @md:text-base @xl:text-lg transition-all" style={{ color: "var(--color-text-secondary)" }}>
                         {WMO_CODES[weather.weathercode] || "Unknown"}
                     </p>
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-                            <Wind size={12} /> {weather.windspeed} km/h
+                    <div className="flex gap-4 @md:gap-6 @xl:gap-8 mt-2 @md:mt-4">
+                        <div className="flex items-center gap-1.5 @md:gap-2 text-xs @md:text-sm @xl:text-base transition-all" style={{ color: "var(--color-text-secondary)" }}>
+                            <Wind className="w-3 h-3 @md:w-4 @md:h-4 @xl:w-5 @xl:h-5" /> {weather.windspeed} km/h
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-                            <Droplets size={12} /> {weather.humidity}%
+                        <div className="flex items-center gap-1.5 @md:gap-2 text-xs @md:text-sm @xl:text-base transition-all" style={{ color: "var(--color-text-secondary)" }}>
+                            <Droplets className="w-3 h-3 @md:w-4 @md:h-4 @xl:w-5 @xl:h-5" /> {weather.humidity}%
                         </div>
                     </div>
                 </div>
             )}
 
             {!weather && !loading && !error && (
-                <p className="text-xs text-center py-4" style={{ color: "var(--color-text-muted)" }}>
+                <p className="text-xs @md:text-sm @xl:text-base text-center py-4 flex-1 flex items-center justify-center transition-all" style={{ color: "var(--color-text-muted)" }}>
                     Search for a city to see weather
                 </p>
             )}

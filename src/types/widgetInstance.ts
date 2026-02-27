@@ -5,7 +5,6 @@ import type { ComponentType } from "react";
 export type WidgetType =
     | "quote_clock"
     | "todo"
-    | "habit_tracker"
     | "github"
     | "weather"
     | "quick_links"

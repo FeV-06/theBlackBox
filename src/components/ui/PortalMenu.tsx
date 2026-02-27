@@ -41,7 +41,7 @@ export function PortalMenu({
         };
     }, [isOpen]);
 
-    const handleOpen = (e: React.MouseEvent) => {
+    const handleOpen = (e: React.PointerEvent | React.MouseEvent) => {
         e.stopPropagation();
         if (triggerRef.current) {
             const rect = triggerRef.current.getBoundingClientRect();
@@ -55,7 +55,7 @@ export function PortalMenu({
 
     return (
         <div className="relative inline-block" ref={triggerRef}>
-            <div onClick={handleOpen} className="cursor-pointer">
+            <div onPointerUp={handleOpen} className="cursor-pointer">
                 {trigger}
             </div>
 

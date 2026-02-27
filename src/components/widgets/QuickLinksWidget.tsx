@@ -21,9 +21,9 @@ export default function QuickLinksWidget({ instance }: { instance: WidgetInstanc
     };
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 @md:gap-4 @xl:gap-6 h-full @container/links">
             {/* Links grid */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 @md/links:grid-cols-4 @xl/links:grid-cols-5 gap-2 @md/links:gap-3 @xl/links:gap-4">
                 <AnimatePresence>
                     {bookmarks.map((bm) => (
                         <motion.a
@@ -39,12 +39,12 @@ export default function QuickLinksWidget({ instance }: { instance: WidgetInstanc
                             style={{ border: "1px solid rgba(255,255,255,0.04)" }}
                         >
                             <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+                                className="w-8 h-8 @md/links:w-10 @md/links:h-10 @xl/links:w-12 @xl/links:h-12 rounded-lg flex items-center justify-center text-xs @md/links:text-sm @xl/links:text-base font-bold transition-all"
                                 style={{ background: "rgba(124,92,255,0.12)", color: "var(--color-accent)" }}
                             >
                                 {bm.title.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-xs truncate w-full text-center" style={{ color: "var(--color-text-secondary)" }}>
+                            <span className="text-xs @md/links:text-sm @xl/links:text-base truncate w-full text-center transition-all" style={{ color: "var(--color-text-secondary)" }}>
                                 {bm.title}
                             </span>
                             <button
@@ -52,10 +52,10 @@ export default function QuickLinksWidget({ instance }: { instance: WidgetInstanc
                                     e.preventDefault();
                                     deleteBookmark(bm.id);
                                 }}
-                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 transition-all"
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 @md/links:p-1 rounded hover:bg-white/10 transition-all"
                                 style={{ color: "var(--color-danger)" }}
                             >
-                                <Trash2 size={10} />
+                                <Trash2 className="w-2.5 h-2.5 @md/links:w-3.5 @md/links:h-3.5 @xl/links:w-4 @xl/links:h-4" />
                             </button>
                         </motion.a>
                     ))}
@@ -88,10 +88,10 @@ export default function QuickLinksWidget({ instance }: { instance: WidgetInstanc
             ) : (
                 <button
                     onClick={() => setShowAdd(true)}
-                    className="flex items-center justify-center gap-1.5 py-2 text-xs rounded-xl transition-all hover:bg-white/[0.03]"
+                    className="flex items-center justify-center gap-1.5 py-2 @md/links:py-3 @xl/links:py-4 text-xs @md/links:text-sm @xl/links:text-base rounded-xl transition-all hover:bg-white/[0.03]"
                     style={{ color: "var(--color-text-muted)", border: "1px dashed rgba(255,255,255,0.08)" }}
                 >
-                    <Plus size={12} /> Add Link
+                    <Plus className="w-3 h-3 @md/links:w-4 @md/links:h-4 @xl/links:w-5 @xl/links:h-5" /> Add Link
                 </button>
             )}
         </div>

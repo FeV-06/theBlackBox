@@ -93,7 +93,7 @@ function InsightsWidgetInner({ instance }: { instance: WidgetInstance }) {
     const hasData = sessions.length > 0 || allTodos.length > 0 || projects.length > 0;
 
     return (
-        <div ref={containerRef} className="flex flex-col h-full w-full overflow-hidden transition-all duration-300 ease-out">
+        <div ref={containerRef} className="flex flex-col h-full w-full overflow-hidden transition-all duration-300 ease-out @container/insights">
             {/* Header / Tabs — Pinned */}
             <div className="flex-none">
                 <InsightsHeader range={range} setRange={setRange} />

@@ -106,7 +106,7 @@ function SortableTodoItem({
             initial={{ opacity: 0, scale: 0.98, y: 5 }}
             animate={{ opacity: todo.completed ? 0.5 : 1, scale: todo.completed ? 0.98 : 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all border border-transparent 
+            className={`flex items-center gap-2 @md:gap-3 @xl:gap-4 px-2.5 py-1.5 @md:px-4 @md:py-2.5 @xl:px-5 @xl:py-3.5 rounded-xl transition-all border border-transparent 
         ${isDragging ? "bg-white/10 shadow-lg border-white/20" : "hover:bg-white/[0.04] hover:border-white/[0.05]"} group relative`}
         >
             <div
@@ -120,20 +120,20 @@ function SortableTodoItem({
 
             <button
                 onClick={() => toggleTodo(instanceId, todo.id)}
-                className="w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-all"
+                className="w-4 h-4 @md:w-5 @md:h-5 @xl:w-6 @xl:h-6 rounded-md border flex items-center justify-center shrink-0 transition-all"
                 style={{
                     borderColor: todo.completed ? "var(--color-accent)" : "rgba(255,255,255,0.2)",
                     background: todo.completed ? "var(--color-accent)" : "transparent",
                 }}
             >
-                {todo.completed && <CheckSquare size={10} className="text-white" />}
+                {todo.completed && <CheckSquare className="text-white w-2.5 h-2.5 @md:w-3.5 @md:h-3.5 @xl:w-4 @xl:h-4" />}
             </button>
 
             <div className="flex-1 flex flex-col min-w-0">
                 <input
                     value={todo.text}
                     onChange={(e) => updateTodo(instanceId, todo.id, { text: e.target.value })}
-                    className="text-xs transition-all truncate bg-transparent outline-none m-0 p-0 flex-1 min-w-0"
+                    className="text-xs @md:text-sm @xl:text-base transition-all truncate bg-transparent outline-none m-0 p-0 flex-1 min-w-0"
                     style={{
                         color: todo.completed ? "var(--color-text-muted)" : "var(--color-text-primary)",
                         textDecoration: todo.completed ? "line-through" : "none",
@@ -149,7 +149,7 @@ function SortableTodoItem({
                             };
                             updateTodo(instanceId, todo.id, { priority: nextOrder[todo.priority] });
                         }}
-                        className={`text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded transition-all ${priorityColors[todo.priority]
+                        className={`text-[8px] @md:text-[10px] @xl:text-[12px] uppercase tracking-wider px-1.5 py-0.5 @md:px-2 @md:py-1 rounded transition-all ${priorityColors[todo.priority]
                             }`}
                     >
                         {todo.priority}
@@ -162,8 +162,8 @@ function SortableTodoItem({
                             onChange={(e) => updateTodo(instanceId, todo.id, { dueDate: e.target.value || undefined })}
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                         />
-                        <div className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded transition-colors ${todo.dueDate ? "text-white/40 bg-white/5" : "text-white/20 hover:text-white/40 opacity-0 group-hover:opacity-100"}`}>
-                            <Calendar size={8} />
+                        <div className={`flex items-center gap-1 text-[9px] @md:text-[11px] @xl:text-[13px] px-1.5 py-0.5 @md:px-2 @md:py-1 rounded transition-colors ${todo.dueDate ? "text-white/40 bg-white/5" : "text-white/20 hover:text-white/40 opacity-0 group-hover:opacity-100"}`}>
+                            <Calendar className="w-2 h-2 @md:w-3 @md:h-3 @xl:w-4 @xl:h-4" />
                             {dateLabel || "Set Date"}
                         </div>
                     </div>
@@ -245,24 +245,24 @@ export default function TodoWidget({ instance }: { instance: WidgetInstance }) {
     const progress = todos.length > 0 ? (completedTodos.length / todos.length) * 100 : 0;
 
     return (
-        <div className="flex flex-col h-full gap-3 overflow-hidden text-white w-full relative">
+        <div className="flex flex-col h-full gap-3 @md:gap-4 @xl:gap-6 @container overflow-hidden text-white w-full relative">
             {/* Header / Config */}
-            <div className="flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between shrink-0 @md:mb-1 @xl:mb-2">
+                <div className="flex items-center gap-2 @md:gap-3 @xl:gap-4">
                     <div className="w-16 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                         <div
                             className="h-full transition-all duration-500"
                             style={{ width: `${progress}%`, background: "var(--color-accent)" }}
                         />
                     </div>
-                    <span className="text-[10px] font-bold opacity-40 shrink-0">
+                    <span className="text-[10px] @md:text-xs @xl:text-sm font-bold opacity-40 shrink-0">
                         {completedTodos.length}/{todos.length}
                     </span>
                 </div>
                 <select
                     value={sortMode}
                     onChange={(e) => setTodoSortMode(instance.instanceId, e.target.value as any)}
-                    className="bg-transparent text-[10px] opacity-50 hover:opacity-100 outline-none cursor-pointer"
+                    className="bg-transparent text-[10px] @md:text-xs @xl:text-sm opacity-50 hover:opacity-100 outline-none cursor-pointer"
                 >
                     <option value="manual" className="bg-[#111] text-white">Manual Sort</option>
                     <option value="priority" className="bg-[#111] text-white">By Priority</option>
@@ -271,20 +271,20 @@ export default function TodoWidget({ instance }: { instance: WidgetInstance }) {
             </div>
 
             {/* Add Input */}
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 @md:gap-3 @xl:gap-4 shrink-0">
                 <input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                     placeholder="Add a task..."
-                    className="flex-1 bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg px-3 py-2 text-xs outline-none focus:border-[color:var(--color-accent)] focus:bg-white/[0.02] transition-colors"
+                    className="flex-1 bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg px-3 py-2 @md:px-4 @md:py-3 @xl:px-5 @xl:py-4 text-xs @md:text-sm @xl:text-base outline-none focus:border-[color:var(--color-accent)] focus:bg-white/[0.02] transition-colors"
                 />
                 <button
                     onClick={handleAdd}
-                    className="btn-accent px-3 py-2 flex items-center justify-center gap-1 rounded-lg"
+                    className="btn-accent px-3 py-2 @md:px-4 @md:py-3 @xl:px-5 @xl:py-4 flex items-center justify-center gap-1 rounded-lg"
                 >
-                    <Plus size={14} />
+                    <Plus className="w-3.5 h-3.5 @md:w-4 @md:h-4 @xl:w-5 @xl:h-5" />
                 </button>
             </div>
 

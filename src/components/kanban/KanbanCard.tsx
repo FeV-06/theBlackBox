@@ -47,7 +47,7 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
         <div
             ref={isOverlay ? undefined : setNodeRef}
             style={style}
-            className={`glass-card p-3.5 rounded-xl flex flex-col gap-3 transition-all duration-300 relative overflow-hidden group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"}`}
+            className={`glass-card p-3.5 @md/kanban:p-4 @xl/kanban:p-5 rounded-xl flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 transition-all duration-300 relative overflow-hidden group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"}`}
         >
             {/* Subtle Gradient Glow */}
             <div
@@ -103,7 +103,7 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                             setEditing(true);
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="flex-1 text-[13px] font-medium leading-relaxed cursor-text outline-none"
+                        className="flex-1 text-[13px] @md/kanban:text-[15px] @xl/kanban:text-[17px] font-medium leading-relaxed cursor-text outline-none transition-all"
                         style={{
                             color: isDone ? "var(--color-text-muted)" : "var(--color-text-primary)",
                             textDecoration: isDone ? "line-through" : "none"
@@ -137,7 +137,7 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                     <div
                         {...(isOverlay ? {} : attributes)}
                         {...(isOverlay ? {} : listeners)}
-                        className={`text-white/10 hover:text-white/30 p-1.5 -mr-1 ${isOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
+                        className={`text-white/10 hover:text-white/30 p-1.5 -mr-1 touch-none ${isOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
                     >
                         <GripVertical size={14} />
                     </div>

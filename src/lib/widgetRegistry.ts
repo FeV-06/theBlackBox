@@ -3,7 +3,6 @@
 import type { WidgetTypeDefinition } from "@/types/widgetInstance";
 import QuoteClockWidget from "@/components/widgets/QuoteClockWidget";
 import TodoWidget from "@/components/widgets/TodoWidget";
-import HabitTrackerWidget from "@/components/widgets/HabitTrackerWidget";
 import GitHubWidget from "@/components/widgets/GitHubWidget";
 import WeatherWidget from "@/components/widgets/WeatherWidget";
 import QuickLinksWidget from "@/components/widgets/QuickLinksWidget";
@@ -18,7 +17,6 @@ import InsightsWidget from "@/components/widgets/InsightsWidget";
 import {
     Clock,
     CheckSquare,
-    Flame,
     Github,
     CloudSun,
     Link2,
@@ -34,7 +32,6 @@ import {
 export const WIDGET_REGISTRY: WidgetTypeDefinition[] = [
     { type: "quote_clock", defaultTitle: "Quote & Clock", icon: Clock, component: QuoteClockWidget, allowMultiple: false, defaultConfig: {} },
     { type: "todo", defaultTitle: "To-Do List", icon: CheckSquare, component: TodoWidget, allowMultiple: false, defaultConfig: {} },
-    { type: "habit_tracker", defaultTitle: "Habit Tracker", icon: Flame, component: HabitTrackerWidget, allowMultiple: false, defaultConfig: {} },
     { type: "github", defaultTitle: "GitHub", icon: Github, component: GitHubWidget, allowMultiple: false, defaultConfig: {} },
     { type: "weather", defaultTitle: "Weather", icon: CloudSun, component: WeatherWidget, allowMultiple: true, defaultConfig: {} },
     { type: "quick_links", defaultTitle: "Quick Links", icon: Link2, component: QuickLinksWidget, allowMultiple: false, defaultConfig: {} },

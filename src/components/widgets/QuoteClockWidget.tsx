@@ -50,13 +50,13 @@ export default function QuoteClockWidget({ instance }: { instance: WidgetInstanc
     const [text, author] = quoteStr.split(" — ");
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 @md:gap-4 @xl:gap-6 h-full @container">
             <div className="flex items-baseline gap-3">
-                <span className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-accent)" }}>
+                <span className="text-3xl @md:text-4xl @xl:text-5xl font-bold tracking-tight transition-all" style={{ color: "var(--color-accent)" }}>
                     {time}
                 </span>
             </div>
-            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            <p className="text-sm @md:text-base @xl:text-lg transition-all" style={{ color: "var(--color-text-secondary)" }}>
                 {date}
             </p>
             <div
@@ -80,12 +80,13 @@ export default function QuoteClockWidget({ instance }: { instance: WidgetInstanc
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -5 }}
                             transition={{ duration: 0.3 }}
+                            className="flex flex-col gap-1 @md:gap-2 @xl:gap-3"
                         >
-                            <p className="text-sm italic leading-relaxed line-clamp-3" style={{ color: "var(--color-text-secondary)" }}>
+                            <p className="text-sm @md:text-base @xl:text-lg italic leading-relaxed line-clamp-3 transition-all" style={{ color: "var(--color-text-secondary)" }}>
                                 &ldquo;{text}&rdquo;
                             </p>
                             {author && (
-                                <p className="text-xs mt-1 font-medium truncate opacity-60" style={{ color: "var(--color-text-primary)" }}>
+                                <p className="text-xs @md:text-sm @xl:text-base font-medium truncate opacity-60 transition-all" style={{ color: "var(--color-text-primary)" }}>
                                     — {author}
                                 </p>
                             )}

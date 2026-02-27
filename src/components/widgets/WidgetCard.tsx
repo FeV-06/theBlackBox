@@ -117,8 +117,8 @@ export default function WidgetCard({
             {!isDivider && (
                 <div
                     className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-3 shrink-0 tbb-drag-handle ${dashboardEditMode
-                        ? (stackCount > 1 ? groupLocked : instance.isLocked) ? "cursor-default opacity-50" : "cursor-move bg-purple-500/5 select-none"
-                        : ""
+                        ? (stackCount > 1 ? groupLocked : instance.isLocked) ? "cursor-default opacity-50" : "cursor-move bg-purple-500/5 select-none touch-none"
+                        : "touch-none"
                         }`}
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
                 >
@@ -134,7 +134,12 @@ export default function WidgetCard({
 
                     {/* Title / Rename */}
                     {renaming ? (
-                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <div
+                            className="flex items-center gap-1 flex-1 min-w-0"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                        >
                             <input
                                 ref={inputRef}
                                 type="text"
@@ -168,14 +173,20 @@ export default function WidgetCard({
                     )}
 
                     {/* Stack Controls Container */}
-                    <div className="flex items-center gap-1.5 h-full relative" ref={menuRef}>
+                    <div
+                        className="flex items-center gap-1.5 h-full relative"
+                        ref={menuRef}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                    >
                         {/* Stack Cycle Badge */}
                         {stackCount > 1 && (
                             <motion.button
                                 whileHover={{ scale: 1.06 }}
                                 whileTap={{ scale: 0.94 }}
                                 transition={{ duration: 0.12 }}
-                                onClick={(e: ReactMouseEvent) => {
+                                onPointerUp={(e) => {
                                     if (!groupId || !onCycleStack) return;
                                     const dir = e.shiftKey ? "prev" : "next";
                                     onCycleStack(groupId, dir);
@@ -189,7 +200,7 @@ export default function WidgetCard({
 
                         {/* Collapse Toggle */}
                         <button
-                            onClick={(e: ReactMouseEvent) => {
+                            onPointerUp={(e) => {
                                 e.stopPropagation();
                                 if (stackCount > 1 && groupId && onGroupCollapse) {
                                     onGroupCollapse(groupId, !instance.isCollapsed);
@@ -205,7 +216,7 @@ export default function WidgetCard({
 
                         {dashboardEditMode && (
                             <button
-                                onClick={(e: ReactMouseEvent) => {
+                                onPointerUp={(e) => {
                                     e.stopPropagation();
                                     if (stackCount > 1 && groupId && onToggleGroupLock) {
                                         onToggleGroupLock(groupId);
@@ -345,7 +356,7 @@ export default function WidgetCard({
             {!instance.isCollapsed && (
                 <div className={`
                     flex-1 min-h-0 overflow-visible relative flex flex-col 
-                    ${isDivider ? "tbb-drag-handle cursor-move" : ""} 
+                    ${isDivider ? "tbb-drag-handle cursor-move touch-none" : ""} 
                     ${dashboardEditMode && !isDivider ? "pointer-events-none opacity-40 grayscale-[0.5]" : ""}
                     ${dashboardEditMode && isDivider ? "ring-1 ring-white/10 rounded-lg bg-white/[0.02]" : ""}
                 `}>

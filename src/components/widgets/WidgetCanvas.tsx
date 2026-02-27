@@ -559,13 +559,22 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
         setTimeout(() => setGuides({ vertical: [], horizontal: [] }), 150);
     }, []);
 
-    /* ── Global Mouse Tracking (V4) ── */
+    /* ── Global Mouse/Pointer Tracking (V4) ── */
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
             pointerRef.current = { x: e.clientX, y: e.clientY };
         };
+        const onTouchMove = (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+                pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        };
         window.addEventListener("mousemove", onMove);
-        return () => window.removeEventListener("mousemove", onMove);
+        window.addEventListener("touchmove", onTouchMove, { passive: true });
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("touchmove", onTouchMove);
+        };
     }, []);
 
     // V4.7: Helper to get pointer in surface coordinates (scrolled space)
@@ -811,12 +820,19 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 dragHandleClassName="tbb-drag-handle"
                                 minWidth={activeInstance.type === "section_divider" ? 100 : 280}
                                 minHeight={activeInstance.isCollapsed ? (activeInstance.collapsedHeight ?? 64) : (activeInstance.type === "section_divider" ? 40 : 180)}
-                                onDragStart={() => {
+                                onDragStart={(e) => {
                                     if (scrollRef.current) {
                                         dragScrollStartRef.current = {
                                             left: scrollRef.current.scrollLeft,
                                             top: scrollRef.current.scrollTop
                                         };
+                                    }
+
+                                    // V4.4: Explicit pointer update from DragStart Event
+                                    if ("clientX" in e && "clientY" in e) {
+                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                    } else if ("touches" in e && (e as TouchEvent).touches.length > 0) {
+                                        pointerRef.current = { x: (e as TouchEvent).touches[0].clientX, y: (e as TouchEvent).touches[0].clientY };
                                     }
 
                                     // V4.7: Capture Drag Offset in Surface Coordinates
@@ -831,7 +847,9 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 onDrag={(e, d) => {
                                     // V4.4: Explicit pointer update from Drag Event
                                     if ("clientX" in e && "clientY" in e) {
-                                        pointerRef.current = { x: e.clientX, y: e.clientY };
+                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                    } else if ("touches" in e && e.touches.length > 0) {
+                                        pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                                     }
 
                                     // V4.8 Debug: Check horizontal scroll
@@ -1010,7 +1028,9 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 onResize={(e, direction, ref, delta, pos) => {
                                     // V4.4: Explicit pointer update from Resize Event
                                     if ("clientX" in e && "clientY" in e) {
-                                        pointerRef.current = { x: e.clientX, y: e.clientY };
+                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                    } else if ("touches" in e && e.touches.length > 0) {
+                                        pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                                     }
 
                                     const newW = ref.offsetWidth;
@@ -1119,7 +1139,7 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 style={{
                                     zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
                                 }}
-                                className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''}`}
+                                className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''} touch-none`}
                             >
                                 <AnimatePresence mode="wait" initial={false} custom={dir}>
                                     <motion.div

@@ -23,7 +23,7 @@ export default function InsightsTabs({ tab, setTab }: InsightsTabsProps) {
                 <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-all relative ${tab === t.id ? "text-white" : "text-white/30 hover:text-white/60"
+                    className={`flex-1 py-1.5 @md/insights:py-2 @xl/insights:py-3 text-[10px] @md/insights:text-[11px] @xl/insights:text-xs font-semibold uppercase tracking-wider transition-all relative ${tab === t.id ? "text-white" : "text-white/30 hover:text-white/60"
                         }`}
                 >
                     {t.label}

@@ -36,10 +36,10 @@ export function KanbanColumn({ id, title, tasks, projectId, projectColor }: Kanb
     };
 
     return (
-        <div className="flex flex-col gap-4 w-full min-w-0">
-            <div className="flex items-center justify-between px-3">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+        <div className="flex flex-col gap-4 @md/kanban:gap-6 @xl/kanban:gap-8 w-full min-w-0">
+            <div className="flex items-center justify-between px-3 @md/kanban:px-4 @xl/kanban:px-5">
+                <div className="flex items-center gap-2 @md/kanban:gap-3">
+                    <span className="text-sm @md/kanban:text-base @xl/kanban:text-lg font-bold tracking-tight transition-all" style={{ color: "var(--color-text-primary)" }}>
                         {title}
                     </span>
                     <span className="px-1.5 py-0.5 rounded-full bg-white/5 text-[10px] font-medium text-white/40">
@@ -58,7 +58,7 @@ export function KanbanColumn({ id, title, tasks, projectId, projectColor }: Kanb
 
             <div
                 ref={setNodeRef}
-                className="flex flex-col gap-3 min-h-[220px] p-3 rounded-2xl border border-white/[0.05] bg-white/[0.01] relative group/column overflow-hidden transition-all duration-300"
+                className="flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 min-h-[220px] p-3 @md/kanban:p-4 @xl/kanban:p-5 rounded-2xl border border-white/[0.05] bg-white/[0.01] relative group/column overflow-hidden transition-all duration-300"
             >
                 {/* Background Accent Glow */}
                 <div

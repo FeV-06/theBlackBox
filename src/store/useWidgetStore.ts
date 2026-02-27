@@ -43,7 +43,6 @@ function createInstance(type: WidgetType, overrides?: Partial<WidgetInstance>, i
 const OLD_TYPE_MAP: Record<string, WidgetType> = {
     quote_clock: "quote_clock",
     todo: "todo",
-    habits: "habit_tracker",  // old id → new type
     github: "github",
     weather: "weather",
     links: "quick_links",     // old id → new type
@@ -56,7 +55,6 @@ const OLD_TYPE_MAP: Record<string, WidgetType> = {
 const DEFAULT_TYPES: WidgetType[] = [
     "quote_clock",
     "todo",
-    "habit_tracker",
     "github",
     "weather",
     "quick_links",

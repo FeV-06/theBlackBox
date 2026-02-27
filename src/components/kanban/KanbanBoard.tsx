@@ -7,6 +7,7 @@ import {
     closestCenter,
     KeyboardSensor,
     PointerSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     DragStartEvent,
@@ -74,6 +75,12 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
         useSensor(PointerSensor, {
             activationConstraint: {
                 distance: 5, // minimum drag distance before activation
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 250, // Require holding for 250ms to drag, distinguishing from scroll
+                tolerance: 5,
             },
         }),
         useSensor(KeyboardSensor, {
@@ -207,7 +214,7 @@ export default function KanbanBoard({ project, hideCompleted }: KanbanBoardProps
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
         >
-            <div ref={boardRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start w-full pb-8">
+            <div ref={boardRef} className="grid grid-cols-1 @md/kanban:grid-cols-3 gap-6 @md/kanban:gap-8 @xl/kanban:gap-10 items-start w-full pb-8">
                 {COLUMNS.map((col) => (
                     <KanbanColumn
                         key={col.id}

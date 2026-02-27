@@ -38,22 +38,22 @@ export default function ProjectInsights({ projectStats }: ProjectInsightsProps) 
                         {stats.map((p) => (
                             <div key={p.id} className="flex flex-col gap-2 group/proj">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 @md/insights:gap-3">
                                         <div
-                                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.1)]"
+                                            className="w-2.5 h-2.5 @md/insights:w-3.5 @md/insights:h-3.5 @xl/insights:w-4.5 @xl/insights:h-4.5 rounded-full shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.1)] transition-all"
                                             style={{
                                                 background: p.color,
                                                 boxShadow: `0 0 10px ${p.color}40`
                                             }}
                                         />
                                         <span
-                                            className="text-[12px] font-bold truncate max-w-[160px] tracking-tight group-hover/proj:text-white transition-colors"
+                                            className="text-[12px] @md/insights:text-[14px] @xl/insights:text-[16px] font-bold truncate max-w-[160px] @md/insights:max-w-[200px] @xl/insights:max-w-[280px] tracking-tight group-hover/proj:text-white transition-all"
                                             style={{ color: "var(--color-text-secondary)" }}
                                         >
                                             {p.name}
                                         </span>
                                     </div>
-                                    <span className="text-[11px] font-black opacity-40 tabular-nums">
+                                    <span className="text-[11px] @md/insights:text-xs @xl/insights:text-sm font-black opacity-40 tabular-nums transition-all">
                                         {Math.round(p.progress)}%
                                     </span>
                                 </div>
