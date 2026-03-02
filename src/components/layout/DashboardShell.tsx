@@ -34,15 +34,17 @@ export default function DashboardShell() {
     }, [setDashboardEditMode]);
 
     const ActiveComponent = tabComponents[activeTab];
+    const isDashboard = activeTab === "dashboard";
 
     return (
         <div className="flex h-screen">
             <FocusTimerManager />
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
-            <div className="flex flex-col flex-1 ml-0 md:ml-[72px]">
+            <div className="flex flex-col flex-1 ml-0 md:ml-[72px] min-h-0">
                 <Header />
-                <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6">
+                {/* main is always overflow-hidden — each tab controls its own scroll */}
+                <main className="flex-1 overflow-hidden min-h-0">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={activeTab}
@@ -52,7 +54,15 @@ export default function DashboardShell() {
                             transition={{ duration: 0.2, ease: "easeInOut" }}
                             className="h-full"
                         >
-                            <ActiveComponent onNavigate={setActiveTab} />
+                            {/* Dashboard fills full screen on mobile, no padding.
+                                All other tabs get their own scrollable padded container. */}
+                            {isDashboard ? (
+                                <ActiveComponent onNavigate={setActiveTab} />
+                            ) : (
+                                <div className="h-full overflow-y-auto p-3 pb-24 sm:p-4 md:p-6 md:pb-6">
+                                    <ActiveComponent onNavigate={setActiveTab} />
+                                </div>
+                            )}
                         </motion.div>
                     </AnimatePresence>
                 </main>

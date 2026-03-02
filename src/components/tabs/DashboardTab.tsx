@@ -44,9 +44,9 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
     }, []);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden animate-fade-in px-4 md:px-6 py-4 md:py-6">
-            {/* Header controls for Edit Mode */}
-            <div className="flex items-center justify-between mb-6 shrink-0">
+        <div className="flex flex-col h-full overflow-hidden animate-fade-in md:px-6 md:py-6">
+            {/* Header controls for Edit Mode — desktop only */}
+            <div className="hidden md:flex items-center justify-between mb-6 shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
                         Dashboard
@@ -113,7 +113,8 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
                 </div>
             </div>
 
-            <div className="flex-1 min-w-0 overflow-auto rounded-3xl bg-black/5 border border-white/5">
+            {/* Desktop: bordered preview panel; Mobile: raw full-screen deck via WidgetCanvas */}
+            <div className="flex-1 min-w-0 overflow-hidden md:rounded-3xl md:bg-black/5 md:border md:border-white/5">
                 <WidgetCanvas onNavigate={onNavigate} />
             </div>
         </div>

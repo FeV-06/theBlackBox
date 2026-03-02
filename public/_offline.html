@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TheBlackBox — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0B0B0E;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 2rem;
+    }
+    .icon { font-size: 3.5rem; opacity: 0.6; }
+    h1 { font-size: 1.5rem; font-weight: 700; opacity: 0.9; }
+    p { font-size: 0.9rem; opacity: 0.5; text-align: center; max-width: 280px; line-height: 1.6; }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.65rem 1.5rem;
+      background: #7C5CFF;
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>You're offline</h1>
+  <p>TheBlackBox couldn't reach the server. Check your connection and try again.</p>
+  <button onclick="location.reload()">Retry</button>
+</body>
+</html>

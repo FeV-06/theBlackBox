@@ -361,7 +361,7 @@ function TemplateManager() {
                                     {isDefault && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50">Default</span>}
                                 </div>
                                 <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                                    {new Date(t.updatedAt).toLocaleDateString()} • {t.snapshot.layout.length} widgets
+                                    {new Date(t.updatedAt).toLocaleDateString()} • {t.snapshot ? `${t.snapshot.layout.length} widgets` : "Built-in"}
                                 </span>
                             </div>
 

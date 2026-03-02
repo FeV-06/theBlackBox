@@ -16,6 +16,8 @@ import type { WidgetGroup } from "@/types/widgetGroup";
 import { AlertTriangle } from "lucide-react";
 import StackExpandModal from "./StackExpandModal";
 import { useIsMounted } from "@/hooks/useIsMounted";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import MobileWidgetDeck from "./mobile/MobileWidgetDeck";
 
 /* ── Constants ── */
 const GROUP_PROXIMITY_PX = 40;
@@ -232,6 +234,8 @@ function UnknownWidget({ instance }: { instance: WidgetInstance }) {
 export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanvas = false }: WidgetCanvasProps) {
     const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks, setInstanceCollapse } = useWidgetStore();
     const dashboardEditMode = useSettingsStore((s) => s.dashboardEditMode);
+    // ── Responsive: detect mobile early (must be at hook level, not inside condition) ──
+    const isMobile = useMediaQuery("(max-width: 768px)");
     /* ── Dynamic Canvas State (V4) ── */
     const [surfaceSize, setSurfaceSize] = useState({ w: 0, h: 0 });
 
@@ -650,6 +654,15 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
 
     /* ── Render Logic ── */
     if (!isMounted) return <div className="flex-1" />;
+
+    // ── Mobile: swap the entire canvas for a clean mobile deck ──
+    if (isMobile) {
+        return (
+            <div className="relative w-full h-full">
+                <MobileWidgetDeck onNavigate={onNavigate} />
+            </div>
+        );
+    }
 
     return (
         <div

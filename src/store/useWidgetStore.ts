@@ -4,6 +4,7 @@ import { create } from "zustand"; // Assuming "zustant" was a typo and keeping "
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { WidgetType, WidgetInstance, WidgetTypeDefinition, TodoItem } from "@/types/widgetInstance";
 import { generateId } from "@/lib/utils";
+import { sanitizeWidgets } from "@/lib/widgets/sanitizeWidgets";
 import {
     createCalendarEventFromTask,
     updateCalendarEventFromTask,
@@ -496,14 +497,18 @@ export const useWidgetStore = create<WidgetState>()(
                             return s;
                         }
 
-                        // 2. Normalize Z-Indexes
-                        const sortedIds = [...snapshot.layout].sort((a, b) => {
-                            const zA = snapshot.instances[a]?.zIndex ?? 0;
-                            const zB = snapshot.instances[b]?.zIndex ?? 0;
+                        // 2. Sanitize — remove stale types, orphan IDs, duplicates
+                        const { instances: sanitizedInstances, layout: sanitizedLayout } =
+                            sanitizeWidgets(snapshot.instances, snapshot.layout);
+
+                        // 3. Normalize Z-Indexes
+                        const sortedIds = [...sanitizedLayout].sort((a, b) => {
+                            const zA = sanitizedInstances[a]?.zIndex ?? 0;
+                            const zB = sanitizedInstances[b]?.zIndex ?? 0;
                             return zA - zB;
                         });
 
-                        const newInstances = { ...snapshot.instances };
+                        const newInstances = { ...sanitizedInstances };
                         sortedIds.forEach((id, index) => {
                             if (newInstances[id]) {
                                 newInstances[id] = {
@@ -514,11 +519,11 @@ export const useWidgetStore = create<WidgetState>()(
                             }
                         });
 
-                        // 3. Apply state
+                        // 4. Apply state
                         return {
                             ...pushSnapshot(s),
                             instances: newInstances,
-                            layout: snapshot.layout,
+                            layout: sanitizedLayout,
                             lockedGroups: snapshot.lockedGroups || {},
                         };
                     }),
@@ -810,7 +815,17 @@ export const useWidgetStore = create<WidgetState>()(
                         return { ...pushSnapshot(s), instances };
                     }),
 
-                resetToDefaults: () => set({ ...buildDefaults(), lockedGroups: {}, historyPast: [], historyFuture: [] }),
+                resetToDefaults: () => {
+                    const id = generateId();
+                    const inst = createInstance("quote_clock", { instanceId: id }, 0);
+                    set({
+                        instances: { [id]: inst },
+                        layout: [id],
+                        lockedGroups: {},
+                        historyPast: [],
+                        historyFuture: [],
+                    });
+                },
 
                 // --- Todo Actions ---
                 addTodo: (instanceId, text) => {
@@ -1118,7 +1133,14 @@ export const useWidgetStore = create<WidgetState>()(
                     }
                 });
 
-                return { ...state, instances };
+                // Final step: strip any widget types no longer in the registry
+                // (e.g. Habit Tracker removed, old custom types). This runs on
+                // every rehydration so stale localStorage data can never cause
+                // index mismatches in the mobile carousel.
+                const { instances: cleanInstances, layout: cleanLayout } =
+                    sanitizeWidgets({ ...instances }, [...(state as any).layout ?? []]);
+
+                return { ...state, instances: cleanInstances, layout: cleanLayout };
             },
         }
     )

@@ -134,7 +134,7 @@ function AddPresetModal({
                         placeholder="Preset name"
                         className={inputClass}
                         style={{ color: "var(--color-text-primary)" }}
-                        autoFocus
+                        autoFocus={false}
                     />
                     <input
                         type="text"
@@ -241,7 +241,7 @@ function ManagePresetsModal({ onClose }: { onClose: () => void }) {
                                         onChange={(e) => setEditName(e.target.value)}
                                         className={inputClass}
                                         style={{ color: "var(--color-text-primary)" }}
-                                        autoFocus
+                                        autoFocus={false}
                                     />
                                     <input
                                         value={editQuery}

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { generateId } from "@/lib/utils";
 import { TemplatePreset, DEFAULT_TEMPLATES, DashboardSnapshot } from "@/lib/defaultTemplates";
+import { sanitizeWidgets } from "@/lib/widgets/sanitizeWidgets";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useNavigationStore } from "@/store/useNavigationStore";
 
@@ -102,12 +103,29 @@ export const useTemplateStore = create<TemplateState>()(
                 const template = get().templates.find(t => t.id === id) || DEFAULT_TEMPLATES.find(t => t.id === id);
                 if (!template) return;
 
-                const { snapshot } = template;
+                // Default templates use buildSnapshot() to generate fresh IDs on every apply,
+                // preventing collisions with stale persisted store data.
+                // User-created templates use the static .snapshot field.
+                const snapshot = template.buildSnapshot
+                    ? template.buildSnapshot()
+                    : template.snapshot;
+
+                if (!snapshot) return;
+
+                // Sanitize before applying — removes stale types, orphan IDs, duplicates
+                const { instances, layout } = sanitizeWidgets(snapshot.instances, snapshot.layout);
+
+                if (process.env.NODE_ENV === "development") {
+                    console.log("[applyTemplate] Applying template:", template.name, {
+                        rawCount: snapshot.layout.length,
+                        cleanCount: layout.length,
+                    });
+                }
 
                 // 1. replace widget state
                 useWidgetStore.getState().replaceDashboardState({
-                    instances: snapshot.instances,
-                    layout: snapshot.layout,
+                    instances,
+                    layout,
                     lockedGroups: snapshot.lockedGroups
                 });
 
