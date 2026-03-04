@@ -10,7 +10,7 @@ import {
     User,
 } from "lucide-react";
 import type { TabId } from "@/types/widget";
-import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface SidebarProps {
     activeTab: TabId;
@@ -25,7 +25,9 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
 ];
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
-    const { isConnected, profile } = useGoogleAuthStore();
+    const { isConnected, user } = useAuthStore();
+    const picture = user?.user_metadata?.avatar_url as string | undefined;
+    const name = user?.user_metadata?.full_name as string | undefined;
 
     return (
         <aside className="fixed left-0 top-0 bottom-0 w-[72px] hidden md:flex flex-col items-center py-6 z-50 tbb-panel"
@@ -92,12 +94,12 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 <button
                     onClick={() => { /* Placeholder Modal Logic */ }}
                     className="relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 hover:ring-2 hover:ring-purple-500/30 hover:scale-105"
-                    title={profile?.name || "Profile"}
+                    title={name || "Profile"}
                 >
-                    {isConnected && profile?.picture ? (
+                    {isConnected && picture ? (
                         <img
-                            src={profile.picture}
-                            alt={profile.name || "Profile"}
+                            src={picture}
+                            alt={name || "Profile"}
                             className="w-full h-full rounded-full object-cover shadow-lg shadow-black/50"
                             referrerPolicy="no-referrer"
                         />

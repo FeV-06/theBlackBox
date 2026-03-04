@@ -13,7 +13,7 @@ export default function DemoSection() {
     if (!isMounted) return null;
 
     return (
-        <section className="w-full py-24 px-6 bg-background text-foreground overflow-hidden">
+        <section className="w-full py-24 px-6 bg-background text-foreground overflow-hidden overflow-x-hidden">
             <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
 
                 {/* Left Content */}

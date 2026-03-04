@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import CommandPalette from "@/components/CommandPalette";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import AuthProvider from "@/components/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -46,6 +47,7 @@ export default function RootLayout({
     return (
         <html lang="en" className={inter.variable}>
             <body className="bg-background text-foreground antialiased" suppressHydrationWarning>
+                <AuthProvider />
                 <ThemeProvider />
                 <CommandPalette />
                 {children}

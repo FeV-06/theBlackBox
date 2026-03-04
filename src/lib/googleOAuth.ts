@@ -15,11 +15,11 @@ const SCOPES = [
 export function getOAuthClient(tokens?: {
     access_token?: string;
     refresh_token?: string;
-}) {
+}, redirectUri?: string) {
     const client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
+        redirectUri ?? process.env.GOOGLE_REDIRECT_URI
     );
     if (tokens) {
         client.setCredentials(tokens);
@@ -30,20 +30,21 @@ export function getOAuthClient(tokens?: {
 /**
  * Generate the Google OAuth consent URL.
  */
-export function getAuthUrl() {
-    const client = getOAuthClient();
+export function getAuthUrl(redirectUri?: string) {
+    const client = getOAuthClient(undefined, redirectUri);
     return client.generateAuthUrl({
         access_type: "offline",
         prompt: "consent",
         scope: SCOPES,
+        redirect_uri: redirectUri ?? process.env.GOOGLE_REDIRECT_URI,
     });
 }
 
 /**
  * Exchange authorization code for tokens.
  */
-export async function exchangeCodeForTokens(code: string) {
-    const client = getOAuthClient();
+export async function exchangeCodeForTokens(code: string, redirectUri?: string) {
+    const client = getOAuthClient(undefined, redirectUri);
     const { tokens } = await client.getToken(code);
     return tokens;
 }

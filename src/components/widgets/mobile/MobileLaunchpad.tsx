@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { registryMap } from "@/lib/widgetRegistry";
@@ -87,51 +87,57 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
                 style={{ touchAction: "pan-y" }}
             >
                 <div className="grid grid-cols-2 gap-2.5">
-                    {widgets.map((inst) => {
-                        const def = registryMap.get(inst.type);
-                        if (!def) return null;
-                        const Icon = def.icon;
-                        const label = inst.title || def.defaultTitle;
+                    <AnimatePresence mode="popLayout">
+                        {widgets.map((inst, index) => {
+                            const def = registryMap.get(inst.type);
+                            if (!def) return null;
+                            const Icon = def.icon;
+                            const label = inst.title || def.defaultTitle;
 
-                        return (
-                            <motion.button
-                                key={inst.instanceId}
-                                variants={cardVariants}
-                                whileTap={{ scale: 0.96 }}
-                                onTap={() => onFocus(inst.instanceId)}
-                                className="relative flex flex-col items-start justify-between rounded-[24px] p-5 cursor-pointer text-left overflow-hidden min-h-[120px]"
-                                style={{
-                                    height: "100%",
-                                    background: "var(--color-bg-card)",
-                                    border: "1px solid var(--color-border)",
-                                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                                    WebkitTapHighlightColor: "transparent",
-                                }}
-                            >
-                                {/* Subtle accent glow */}
-                                <div
-                                    className="absolute inset-0 pointer-events-none opacity-60"
+                            return (
+                                <motion.button
+                                    layout
+                                    key={inst.instanceId}
+                                    initial={{ opacity: 0, y: 16, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
+                                    transition={{ type: "spring", stiffness: 350, damping: 25, delay: Math.min(index * 0.05, 0.3) }}
+                                    whileTap={{ scale: 0.96 }}
+                                    onTap={() => onFocus(inst.instanceId)}
+                                    className="relative flex flex-col items-start justify-between rounded-[24px] p-5 cursor-pointer text-left overflow-hidden min-h-[120px]"
                                     style={{
-                                        background: "radial-gradient(ellipse at center top, var(--color-accent-glow) 0%, transparent 80%)",
-                                    }}
-                                />
-                                <div
-                                    className="flex items-center justify-center w-10 h-10 rounded-2xl z-10 flex-shrink-0 mb-4"
-                                    style={{
-                                        background: "var(--color-bg-elevated)",
-                                        border: "1px solid var(--color-border-hover)",
-                                        boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+                                        height: "100%",
+                                        background: "var(--color-bg-card)",
+                                        border: "1px solid var(--color-border)",
+                                        boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                        WebkitTapHighlightColor: "transparent",
                                     }}
                                 >
-                                    <Icon className="w-[18px] h-[18px]" style={{ color: "var(--color-accent)" }} strokeWidth={2} />
-                                </div>
-                                <p className="text-[14px] font-medium leading-snug tracking-tight z-10"
-                                    style={{ color: "var(--color-text-primary)" }}>
-                                    {label}
-                                </p>
-                            </motion.button>
-                        );
-                    })}
+                                    {/* Subtle accent glow */}
+                                    <div
+                                        className="absolute inset-0 pointer-events-none opacity-60"
+                                        style={{
+                                            background: "radial-gradient(ellipse at center top, var(--color-accent-glow) 0%, transparent 80%)",
+                                        }}
+                                    />
+                                    <div
+                                        className="flex items-center justify-center w-10 h-10 rounded-2xl z-10 flex-shrink-0 mb-4"
+                                        style={{
+                                            background: "var(--color-bg-elevated)",
+                                            border: "1px solid var(--color-border-hover)",
+                                            boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+                                        }}
+                                    >
+                                        <Icon className="w-[18px] h-[18px]" style={{ color: "var(--color-accent)" }} strokeWidth={2} />
+                                    </div>
+                                    <p className="text-[14px] font-medium leading-snug tracking-tight z-10"
+                                        style={{ color: "var(--color-text-primary)" }}>
+                                        {label}
+                                    </p>
+                                </motion.button>
+                            );
+                        })}
+                    </AnimatePresence>
                 </div>
             </div>
 
@@ -166,7 +172,7 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
                                     <button
                                         key={inst.instanceId}
                                         className="flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors hover:bg-white/5"
-                                        onPointerDown={() => {
+                                        onClick={() => {
                                             setJumpOpen(false);
                                             onFocus(inst.instanceId);
                                         }}

@@ -55,12 +55,13 @@ export function getRandomQuote(vibe: keyof typeof FALLBACK_QUOTES): string {
 
 export async function fetchQuote(vibe: keyof typeof FALLBACK_QUOTES): Promise<string> {
     try {
-        const res = await fetch("https://api.quotable.io/random", {
+        // Switched to dummyjson because quotable.io has frequent SSL cert issues
+        const res = await fetch("https://dummyjson.com/quotes/random", {
             signal: AbortSignal.timeout(3000),
         });
         if (!res.ok) throw new Error("API error");
         const data = await res.json();
-        return `${data.content} — ${data.author}`;
+        return `${data.quote} — ${data.author}`;
     } catch {
         return getRandomQuote(vibe);
     }

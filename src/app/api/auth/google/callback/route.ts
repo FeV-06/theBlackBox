@@ -14,8 +14,14 @@ export async function GET(request: NextRequest) {
         return new NextResponse("Missing authorization code", { status: 400 });
     }
 
+    // Reconstruct the same redirect URI that was used in the auth URL.
+    // This must match exactly what was registered for the OAuth flow.
+    const host = request.headers.get("host") ?? "localhost:3000";
+    const protocol = host.startsWith("localhost") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+
     try {
-        const tokens = await exchangeCodeForTokens(code);
+        const tokens = await exchangeCodeForTokens(code, redirectUri);
 
         // Fetch user profile
         const client = getOAuthClient({

@@ -11,6 +11,7 @@ import {
     deleteCalendarEvent
 } from "@/lib/todoCalendarSync";
 
+
 /* ─── Helpers ─── */
 
 const DEFAULT_W = 360;
@@ -232,8 +233,8 @@ export const useWidgetStore = create<WidgetState>()(
             }
 
             return {
-                instances: DEFAULTS.instances,
-                layout: DEFAULTS.layout,
+                instances: {},
+                layout: [],
                 lockedGroups: {},
                 historyPast: [],
                 historyFuture: [],
@@ -1140,7 +1141,14 @@ export const useWidgetStore = create<WidgetState>()(
                 const { instances: cleanInstances, layout: cleanLayout } =
                     sanitizeWidgets({ ...instances }, [...(state as any).layout ?? []]);
 
-                return { ...state, instances: cleanInstances, layout: cleanLayout };
+                // v6: Setup Completion
+                let hasCompletedSetup = (state as any).hasCompletedSetup;
+                if (hasCompletedSetup === undefined) {
+                    // If they have any widgets from before or this is an existing user migrating
+                    hasCompletedSetup = cleanLayout.length > 0;
+                }
+
+                return { ...state, instances: cleanInstances, layout: cleanLayout, hasCompletedSetup };
             },
         }
     )

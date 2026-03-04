@@ -232,7 +232,7 @@ export default function MobileFocusCarousel({
                                             <button
                                                 key={inst.instanceId}
                                                 className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors ${isActive ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"}`}
-                                                onPointerDown={() => handleJump(idx)}
+                                                onClick={() => handleJump(idx)}
                                             >
                                                 <Icon
                                                     className="w-3.5 h-3.5 flex-shrink-0"

@@ -6,7 +6,7 @@ import {
     Mail, RefreshCw, ExternalLink, LogIn, Search, Zap,
     ChevronLeft, ChevronRight, Plus, X, Pencil, Trash2, Save, Bookmark,
 } from "lucide-react";
-import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import type { WidgetInstance } from "@/types/widgetInstance";
@@ -293,7 +293,7 @@ function ManagePresetsModal({ onClose }: { onClose: () => void }) {
    Gmail Widget
    ══════════════════════════════════════════════════════════════ */
 export default function GmailWidget({ instance }: { instance: WidgetInstance }) {
-    const { isConnected, connectWithPopup, checkConnection } = useGoogleAuthStore();
+    const { isConnected, signInWithGoogle } = useAuthStore();
     const { gmailPresets } = useSettingsStore();
     const { updateInstanceConfig } = useWidgetStore();
 
@@ -328,7 +328,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
     const queryInputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => { checkConnection(); }, [checkConnection]);
+
     useEffect(() => { setLocalQuery(cfg.query); }, [cfg.query]);
 
     /* ── Fetch ── */
@@ -423,7 +423,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                 <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                     Connect Google to see your inbox
                 </p>
-                <button onClick={connectWithPopup} className="btn-accent text-xs flex items-center gap-1.5 px-3 py-1.5">
+                <button onClick={signInWithGoogle} className="btn-accent text-xs flex items-center gap-1.5 px-3 py-1.5">
                     <LogIn size={13} /> Connect Google
                 </button>
             </div>

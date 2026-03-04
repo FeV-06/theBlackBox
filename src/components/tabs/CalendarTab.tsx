@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { PortalMenu } from "@/components/ui/PortalMenu";
 import { Edit3, CalendarDays, Trash2 } from "lucide-react";
-import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
     type CalendarEvent,
     isAllDayEvent,
@@ -43,7 +43,7 @@ const STATICS = {
 };
 
 export default function CalendarTab() {
-    const { isConnected, connectWithPopup, checkConnection } = useGoogleAuthStore();
+    const { isConnected, signInWithGoogle } = useAuthStore();
 
     // Calendar State
     const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -56,10 +56,7 @@ export default function CalendarTab() {
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
-    // Initial Load
-    useEffect(() => {
-        checkConnection();
-    }, [checkConnection]);
+
 
     // Derived Grid
     const monthGrid = useMemo(() => buildMonthGrid(currentDate), [currentDate]);
@@ -219,7 +216,7 @@ export default function CalendarTab() {
                     </p>
                 </div>
                 <button
-                    onClick={connectWithPopup}
+                    onClick={signInWithGoogle}
                     className="flex items-center gap-2 px-6 py-2.5 bg-white text-black font-semibold rounded-full hover:scale-105 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                 >
                     <RefreshCw size={18} />
@@ -230,61 +227,53 @@ export default function CalendarTab() {
     }
 
     return (
-        <div className="flex flex-col lg:flex-row h-full gap-6 p-2 lg:p-6 overflow-hidden text-white">
+        <div className="flex flex-col lg:flex-row lg:h-full gap-3 lg:gap-6 p-2 lg:p-6 overflow-x-hidden">
 
             {/* ── Main Calendar Grid ── */}
-            <div className="flex-1 flex flex-col min-h-0 bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-sm">
+            <div className="flex flex-col min-h-0 bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-sm h-[360px] md:h-[420px] lg:h-auto lg:flex-1">
 
                 {/* Header */}
-                <div className="relative px-6 py-5 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-                    {/* Desktop / Tablet Grid Layout */}
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                <div className="relative px-3 py-3 md:px-6 md:py-5 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
 
                         {/* Left: Prev Button */}
-                        <div className="flex justify-start">
-                            <button
-                                onClick={prevMonth}
-                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm"
-                                title="Previous Month"
-                            >
-                                <ChevronLeft size={20} />
-                            </button>
-                        </div>
+                        <button
+                            onClick={prevMonth}
+                            className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm"
+                            title="Previous Month"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
 
-                        {/* Center: Month Title */}
-                        <div className="flex justify-center">
-                            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight text-center min-w-[140px]">
+                        {/* Center: Month Title + Actions */}
+                        <div className="flex items-center justify-center gap-2 min-w-0">
+                            <h2 className="text-base md:text-2xl font-bold text-white tracking-tight text-center truncate">
                                 {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                             </h2>
-                        </div>
-
-                        {/* Right: Next + Actions */}
-                        <div className="flex justify-end items-center gap-2">
-                            <button
-                                onClick={nextMonth}
-                                className="flex items-center justify-center w-10 h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm mr-2"
-                                title="Next Month"
-                            >
-                                <ChevronRight size={20} />
-                            </button>
-
-                            <div className="h-6 w-px bg-white/10 mx-1" />
-
+                            <div className="h-5 w-px bg-white/10 shrink-0" />
                             <button
                                 onClick={jumpToToday}
-                                className="px-3 py-1.5 h-9 text-xs font-semibold uppercase tracking-wider text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-all active:scale-95"
+                                className="px-2 py-1 md:px-3 md:py-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-wider text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-all active:scale-95 shrink-0"
                             >
                                 Today
                             </button>
-
                             <button
                                 onClick={fetchEvents}
-                                className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors"
+                                className="flex items-center justify-center w-7 h-7 md:w-9 md:h-9 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors shrink-0"
                                 title="Refresh Events"
                             >
-                                {loading ? <Loader2 size={16} className="animate-spin text-purple-400" /> : <RefreshCw size={16} />}
+                                {loading ? <Loader2 size={14} className="animate-spin text-purple-400" /> : <RefreshCw size={14} />}
                             </button>
                         </div>
+
+                        {/* Right: Next Button */}
+                        <button
+                            onClick={nextMonth}
+                            className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/10 text-white/70 hover:text-white transition-all active:scale-95 shadow-sm"
+                            title="Next Month"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
                     </div>
                 </div>
 
@@ -311,7 +300,7 @@ export default function CalendarTab() {
                                 x: { type: "spring", stiffness: 300, damping: 30 },
                                 opacity: { duration: 0.2 }
                             }}
-                            className="absolute inset-0 grid grid-cols-7 grid-rows-6 p-3 gap-2"
+                            className="absolute inset-0 grid grid-cols-7 grid-rows-6 p-1 gap-1 md:p-3 md:gap-2"
                         >
                             {monthGrid.map((date, i) => {
                                 const isCurrentMonth = isSameMonth(date, currentDate);
@@ -324,7 +313,7 @@ export default function CalendarTab() {
                                         key={i}
                                         onClick={() => setSelectedDate(date)}
                                         className={`
-                                            relative flex flex-col p-2 rounded-xl border transition-all duration-200 cursor-pointer min-h-0
+                                            relative flex flex-col p-0.5 md:p-2 rounded-lg md:rounded-xl border transition-all duration-200 cursor-pointer min-h-0 overflow-hidden
                                             ${!isCurrentMonth ? "opacity-30 bg-transparent border-transparent grayscale hover:opacity-50" : ""}
                                             ${isSelected
                                                 ? "bg-purple-500/10 border-purple-500/30 shadow-[0_0_20px_rgba(124,92,255,0.1)] z-10 scale-[1.02]"
@@ -333,10 +322,10 @@ export default function CalendarTab() {
                                         `}
                                     >
                                         {/* Date Number */}
-                                        <div className="flex justify-between items-start mb-1">
+                                        <div className="flex justify-center md:justify-between items-start md:mb-1">
                                             <span
                                                 className={`
-                                                    text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full
+                                                    text-[10px] md:text-xs font-semibold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full
                                                     ${isTodayDate
                                                         ? "bg-purple-500 text-white shadow-lg shadow-purple-500/40"
                                                         : isSelected ? "text-purple-300" : "text-white/60"}
@@ -346,25 +335,39 @@ export default function CalendarTab() {
                                             </span>
                                         </div>
 
-                                        {/* Events List */}
-                                        <div className="flex-1 flex flex-col gap-1 overflow-hidden">
-                                            {dayEvents.slice(0, 2).map(event => (
-                                                <EventChip
-                                                    key={event.id}
-                                                    event={event}
-                                                    onSelect={handleSelectEvent}
-                                                    onEdit={(e) => {
-                                                        setEditingEvent(e);
-                                                        setIsEventModalOpen(true);
-                                                    }}
-                                                    onDelete={(e) => handleDeleteEvent(e.id)}
-                                                />
-                                            ))}
-                                            {dayEvents.length > 2 && (
-                                                <div className="px-1.5 py-0.5 text-[9px] font-medium text-white/40 hover:text-white/80 transition-colors">
-                                                    +{dayEvents.length - 2} more
+                                        {/* Events — dots on mobile, chips on desktop */}
+                                        <div className="flex-1 overflow-hidden">
+                                            {/* Mobile: event dots */}
+                                            {dayEvents.length > 0 && (
+                                                <div className="flex md:hidden justify-center gap-0.5 mt-0.5 flex-wrap">
+                                                    {dayEvents.slice(0, 3).map(event => (
+                                                        <div
+                                                            key={event.id}
+                                                            className="w-1 h-1 rounded-full bg-purple-400 shrink-0"
+                                                        />
+                                                    ))}
                                                 </div>
                                             )}
+                                            {/* Desktop: event chips */}
+                                            <div className="hidden md:flex flex-col gap-1">
+                                                {dayEvents.slice(0, 2).map(event => (
+                                                    <EventChip
+                                                        key={event.id}
+                                                        event={event}
+                                                        onSelect={handleSelectEvent}
+                                                        onEdit={(e) => {
+                                                            setEditingEvent(e);
+                                                            setIsEventModalOpen(true);
+                                                        }}
+                                                        onDelete={(e) => handleDeleteEvent(e.id)}
+                                                    />
+                                                ))}
+                                                {dayEvents.length > 2 && (
+                                                    <div className="px-1.5 py-0.5 text-[9px] font-medium text-white/40 hover:text-white/80 transition-colors">
+                                                        +{dayEvents.length - 2} more
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -375,23 +378,28 @@ export default function CalendarTab() {
             </div>
 
             {/* ── Side Panel (Details) ── */}
-            <div className={`
-                flex flex-col bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden transition-all duration-300
-                w-full lg:w-80 h-[300px] lg:h-auto shrink-0
-            `}>
-                <div className="p-6 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-                    <div className="text-sm font-medium text-purple-400 uppercase tracking-widest mb-1">
-                        {selectedDate.toLocaleDateString("en-US", { weekday: "long" })}
-                    </div>
-                    <div className="text-3xl font-bold text-white">
-                        {selectedDate.getDate()}
-                    </div>
-                    <div className="text-sm text-white/40">
-                        {selectedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            <div className="flex flex-col bg-white/[0.02] border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden transition-all duration-300 w-full lg:w-80 lg:shrink-0">
+                {/* Compact date header */}
+                <div className="px-4 py-3 lg:px-6 lg:py-5 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <div className="text-[10px] lg:text-sm font-medium text-purple-400 uppercase tracking-widest">
+                                {selectedDate.toLocaleDateString("en-US", { weekday: "long" })}
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl lg:text-3xl font-bold text-white">
+                                    {selectedDate.getDate()}
+                                </span>
+                                <span className="text-xs lg:text-sm text-white/40">
+                                    {selectedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                {/* Events list — scrollable, capped on mobile */}
+                <div className="overflow-y-auto p-3 lg:p-4 space-y-2 lg:space-y-3 custom-scrollbar max-h-[240px] lg:max-h-none lg:flex-1">
                     {eventsForSelectedDate.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 text-center space-y-3 opacity-40">
                             <CalendarIcon size={32} />

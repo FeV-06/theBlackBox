@@ -9,9 +9,10 @@ interface DashboardTabProps {
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { Hammer, Check, Undo2, Redo2 } from "lucide-react";
+import FirstTimeSetupModal from "@/components/widgets/FirstTimeSetupModal";
 
 export default function DashboardTab({ onNavigate }: DashboardTabProps) {
-    const { dashboardEditMode, toggleDashboardEditMode } = useSettingsStore();
+    const { dashboardEditMode, toggleDashboardEditMode, hasCompletedSetup } = useSettingsStore();
     const undo = useWidgetStore((s) => s.undo);
     const redo = useWidgetStore((s) => s.redo);
     const hasPast = useWidgetStore((s) => s.historyPast.length > 0);
@@ -44,7 +45,7 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
     }, []);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden animate-fade-in md:px-6 md:py-6">
+        <div className="relative flex flex-col h-full overflow-hidden animate-fade-in md:px-6 md:py-6">
             {/* Header controls for Edit Mode — desktop only */}
             <div className="hidden md:flex items-center justify-between mb-6 shrink-0">
                 <div>
@@ -114,9 +115,11 @@ export default function DashboardTab({ onNavigate }: DashboardTabProps) {
             </div>
 
             {/* Desktop: bordered preview panel; Mobile: raw full-screen deck via WidgetCanvas */}
-            <div className="flex-1 min-w-0 overflow-hidden md:rounded-3xl md:bg-black/5 md:border md:border-white/5">
+            <div className={`flex-1 min-w-0 overflow-hidden md:rounded-3xl md:bg-black/5 md:border md:border-white/5 ${!hasCompletedSetup ? 'opacity-0 pointer-events-none' : ''}`}>
                 <WidgetCanvas onNavigate={onNavigate} />
             </div>
+
+            {!hasCompletedSetup && <FirstTimeSetupModal />}
         </div>
     );
 }

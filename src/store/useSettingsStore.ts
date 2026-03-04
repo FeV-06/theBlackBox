@@ -32,6 +32,7 @@ interface SettingsState {
     gmail: GmailSettings;
     gmailPresets: GmailPreset[];
     dashboardEditMode: boolean;
+    hasCompletedSetup: boolean;
     setCommandPaletteTheme: (theme: CommandPaletteTheme) => void;
     setQuoteVibe: (vibe: QuoteVibe) => void;
     addBookmark: (title: string, url: string) => void;
@@ -47,6 +48,7 @@ interface SettingsState {
     applyGmailPreset: (id: string) => void;
     toggleDashboardEditMode: () => void;
     setDashboardEditMode: (value: boolean) => void;
+    setHasCompletedSetup: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -63,6 +65,7 @@ export const useSettingsStore = create<SettingsState>()(
             gmail: DEFAULT_GMAIL,
             gmailPresets: DEFAULT_GMAIL_PRESETS,
             dashboardEditMode: false,
+            hasCompletedSetup: false,
 
             setCommandPaletteTheme: (theme) => set({ commandPaletteTheme: theme }),
             setQuoteVibe: (vibe) => set({ quoteVibe: vibe }),
@@ -140,6 +143,7 @@ export const useSettingsStore = create<SettingsState>()(
                     gmail: { ...s.gmail, mode: "advanced", query: preset.query },
                 }));
             },
+            setHasCompletedSetup: (value) => set({ hasCompletedSetup: value }),
         }),
         {
             name: "tbb-settings",

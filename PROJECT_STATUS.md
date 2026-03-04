@@ -1,6 +1,6 @@
 # PROJECT\_STATUS.md — TheBlackBox
 
-> Last updated: 2026-02-18
+> Last updated: 2026-03-04
 
 ---
 
@@ -82,31 +82,31 @@
 - Server-side automatic token refresh
 - COOP header for production popup compatibility
 
-### ✅ Mobile Responsiveness
-- Viewport meta: `width=device-width, initialScale=1`
-- Sidebar hidden on mobile (`hidden md:flex`)
-- Bottom navigation bar (`MobileNav.tsx`) with safe-area iPhone notch support
-- Responsive DashboardShell (margin, padding, bottom clearance)
-- Header stacks vertically on mobile, full-width search
-- Widget cards + grid scale down on mobile (1-col → 2-col → 3-col)
-- Focus timer circle and text scale on mobile
-- Calendar day cells smaller on mobile
+### ✅ Mobile UX Polish
+- Responsive Landing Pages (`demo/page.tsx`, `LandingPage.tsx`).
+- Native app feel using Mobile Widget Deck (`MobileLaunchpad.tsx`, `MobileFocusCarousel.tsx`).
+- Intelligent "Jump To" scrollability on touch devices preventing layout overflow.
+- Mobile Calendar grid adjustments to prevent shrinkage and horizontal overflow.
 
-### ✅ Settings Tab
-- Theme/vibe selection for quotes
-- Widget enable/disable toggles
-- Google account connection/disconnection
-- Account info display (profile picture, name, email)
+### ✅ Onboarding & Defaults
+- **First-Time Setup Modal**: Clean, themed widget selection matrix triggered for new users.
+- Clean start logic bypassing hardcoded default widgets.
+
+### ✅ Settings Tab & Command Palette
+- Theme/vibe selection for quotes.
+- Dedicated `Command Palette` (`Ctrl+K`) for switching tabs and spawning widgets.
+- Widget enable/disable toggles.
+- Google account connection/disconnection.
 
 ### ✅ Canvas Upgrade Pack v1.1
 - **Widget Collapse/Expand**: Minimize widgets to header-only view (saving vertical space).
-- **Section Dividers**: New decorative widget type for organizing the dashboard (Line, Box, Glow styles).
+- **Section Dividers**: Decorative widget type for organizing the dashboard (Line, Box, Glow styles).
 - **Advanced Layout Logic**: Resizing constraints for collapsed widgets, exclusion of dividers from auto-stacking.
 
 ### ✅ Strict Layout Refactor (UI Enhancement)
-- **Nav & Sidebar**: Centered search with strict width (`clamp(320px, 40%, 600px)`), relocated Profile/Settings dock to Sidebar base.
+- **Nav & Sidebar**: Centered search with strict width (`clamp(320px, 40%, 600px)`).
 - **Focus Tab Density**: Zero-dead-space 3-zone layout. Dominant timer (`flex-[3]`), live stats strip (`flex-[1]`), integrated activity scaling right panel.
-- **Projects Tab Anti-Emptying**: Adaptive grid padding out gaps, combined thin progress bars with inline task previews, fallback Quick Action/Insight panels when `< 3` projects exist.
+- **Projects Tab Anti-Emptying**: Adaptive grid padding out gaps, combined thin progress bars with inline task previews.
 
 ---
 
@@ -138,7 +138,7 @@
 
 | Store | Persist Key | What It Stores |
 |---|---|---|
-| `useWidgetStore` | `tbb-widgets` | Widget order array, enabled/disabled map, custom API instances, bookmarks |
+| `useWidgetStore` | `tbb-widgets` | Widget order array, enabled/disabled map, custom API instances, bookmarks, setup flag |
 | `useTodoStore` | `tbb-todos` | Todo items (text, done status, timestamp) |
 | `useHabitStore` | `tbb-habits` | Habits with checked-dates array |
 | `useFocusStore` | `tbb-focus` | Timer state, sessions history, pomodoro config |
@@ -155,13 +155,12 @@ All persisted stores use Zustand's `persist` middleware with `localStorage` as t
 ## 5. Known Bugs / UX Issues
 
 - **No `TODO` / `FIXME` markers found in source code** — codebase is clean
-- **Mobile UX still needs polish** — interactions (hover states, drag-and-drop on touch devices) could be improved
 - **Gmail widget** — functional but not fully polished; depends on OAuth scopes being granted
 - **No error boundaries** — unhandled widget errors could crash the whole dashboard
 - **No loading skeletons** — widgets show no placeholder UI while loading data
 
 ---
-
+<!-- 
 ## 6. Work in Progress / Placeholder Features
 
 | Feature | Status | Notes |
@@ -170,7 +169,7 @@ All persisted stores use Zustand's `persist` middleware with `localStorage` as t
 | **Custom API Widget** | 🟢 Working | Template system functional; could use response validation |
 | **Cloud Sync** | 🔴 Not started | Currently localStorage only; no cross-device sync |
 | **PWA Offline** | 🔴 Not started | No service worker or offline caching |
-| **Canvas Widget Layout** | 🔴 Not started | Widgets are grid-only; no free-form positioning |
+| **Canvas Widget Layout** | 🔴 Not started | Widgets are grid-only; no free-form positioning | -->
 
 ---
 

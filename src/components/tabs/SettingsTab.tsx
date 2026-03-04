@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
-import { useGoogleAuthStore } from "@/store/useGoogleAuthStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { WIDGET_REGISTRY } from "@/lib/widgetRegistry";
 import type { QuoteVibe } from "@/types/widget";
 import type { WidgetType } from "@/types/widgetInstance";
@@ -46,14 +46,17 @@ const VIBES: { value: QuoteVibe; label: string }[] = [
 export default function SettingsTab() {
     const { instances, layout, toggleInstance, removeInstance, addInstance, duplicateInstance, resetToDefaults, toggleInstanceLock } = useWidgetStore();
     const { quoteVibe, setQuoteVibe, apiWidgets, deleteApiWidget, commandPaletteTheme, setCommandPaletteTheme } = useSettingsStore();
-    const { isConnected, profile, loading, connectWithPopup, disconnect, checkConnection } = useGoogleAuthStore();
+    const { isConnected, user, loading, signInWithGoogle, signOut } = useAuthStore();
+    const profilePicture = user?.user_metadata?.avatar_url as string | undefined;
+    const profileName = user?.user_metadata?.full_name as string | undefined;
+    const profileEmail = user?.email;
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState("");
     const [disconnecting, setDisconnecting] = useState(false);
     const [selectedType, setSelectedType] = useState<WidgetType>("todo");
     const isMounted = useIsMounted();
 
-    useEffect(() => { checkConnection(); }, [checkConnection]);
+
 
     const handleExport = () => {
         const data: Record<string, string | null> = {};
@@ -87,7 +90,7 @@ export default function SettingsTab() {
 
     const handleDisconnect = async () => {
         setDisconnecting(true);
-        await disconnect();
+        await signOut();
         setDisconnecting(false);
     };
 
@@ -136,16 +139,16 @@ export default function SettingsTab() {
                     </h3>
                     {isConnected ? (
                         <div className="flex items-center gap-4">
-                            {profile?.picture ? (
-                                <img src={profile.picture} alt="" className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                            {profilePicture ? (
+                                <img src={profilePicture} alt="" className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(124,92,255,0.15)" }}>
                                     <User size={18} style={{ color: "var(--color-accent)" }} />
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{profile?.name || "Connected"}</p>
-                                <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>{profile?.email}</p>
+                                <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{profileName || "Connected"}</p>
+                                <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>{profileEmail}</p>
                             </div>
                             <button
                                 onClick={handleDisconnect}
@@ -161,7 +164,7 @@ export default function SettingsTab() {
                         <div className="flex items-center gap-3">
                             <p className="flex-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>Connect for Calendar & Gmail integration</p>
                             <button
-                                onClick={connectWithPopup}
+                                onClick={signInWithGoogle}
                                 disabled={loading}
                                 className="btn-accent text-xs flex items-center gap-1.5 px-3 py-1.5"
                             >
