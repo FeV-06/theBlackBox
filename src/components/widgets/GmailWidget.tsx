@@ -347,7 +347,7 @@ export default function GmailWidget({ instance }: { instance: WidgetInstance }) 
                 params.set("category", cfg.category);
             }
             if (pageToken) params.set("pageToken", pageToken);
-            params.set("maxResults", "50");
+            params.set("maxResults", "10");
 
             const res = await fetch(`/api/google/gmail/summary?${params}`);
             if (res.status === 401) { setError("Session expired. Reconnect Google."); return; }

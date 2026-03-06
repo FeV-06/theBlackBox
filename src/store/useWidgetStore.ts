@@ -378,45 +378,167 @@ export const useWidgetStore = create<WidgetState>()(
                         // Avoid redundant updates
                         if ((inst.isCollapsed ?? false) === collapsed) return s;
 
-                        const currentH = inst.layout.h;
+                        const oldH = inst.layout.h;
+                        const newH = collapsed ? 64 : (Math.round((inst.savedExpandedHeight ?? 280) / 10) * 10);
+                        const dy = newH - oldH;
 
-                        if (collapsed) {
-                            return {
-                                ...pushSnapshot(s),
-                                instances: {
-                                    ...s.instances,
-                                    [instanceId]: {
-                                        ...inst,
-                                        isCollapsed: true,
-                                        savedExpandedHeight: inst.isCollapsed ? inst.savedExpandedHeight : Math.max(currentH, 180),
-                                        collapsedHeight: 64,
-                                        layout: { ...inst.layout, h: 64 },
-                                        updatedAt: Date.now(),
-                                    },
-                                },
-                            };
-                        } else {
-                            const restoredH = inst.savedExpandedHeight ?? 280;
-                            // Helper snap is not accessible if we define it in closure but use it here?
-                            // Wait, the closure `(set, get) => { const snap = ...; return { ... } }`
-                            // So `snap` IS accessible here.
+                        // Create a clone of instances to modify
+                        const nextInstances = { ...s.instances };
 
-                            // Re-calculate snap to be safe or just use raw value (since it was snapped when saved)
-                            const finalH = Math.round(restoredH / 10) * 10;
+                        // Update the target widget
+                        nextInstances[instanceId] = {
+                            ...inst,
+                            isCollapsed: collapsed,
+                            savedExpandedHeight: collapsed ? (inst.isCollapsed ? inst.savedExpandedHeight : Math.max(oldH, 180)) : inst.savedExpandedHeight,
+                            collapsedHeight: 64,
+                            layout: { ...inst.layout, h: newH },
+                            updatedAt: Date.now(),
+                        };
 
-                            return {
-                                ...pushSnapshot(s),
-                                instances: {
-                                    ...s.instances,
-                                    [instanceId]: {
-                                        ...inst,
-                                        isCollapsed: false,
-                                        layout: { ...inst.layout, h: finalH },
-                                        updatedAt: Date.now(),
-                                    },
-                                },
-                            };
+                        // Anchor Physics System
+                        // Grab only visible/enabled widgets that have layouts
+                        const activeWidgets = Object.values(s.instances).filter(w => w.enabled && w.layout);
+
+                        // Helper to check horizontal overlap (column match)
+                        const horizOverlap = (a: WidgetInstance, b: WidgetInstance) => {
+                            // 10px forgiveness so side-by-side widgets don't act as intersecting obstacles
+                            return (a.layout!.x + 10) < (b.layout!.x + b.layout!.w) &&
+                                (a.layout!.x + a.layout!.w - 10) > b.layout!.x;
+                        };
+
+                        if (dy < 0) { // COLLAPSING (Moving Up)
+                            // A widget only moves up if its "anchors" (widgets directly above it) move up.
+                            // If it's anchored to multiple widgets, it can only move up as much as the *slowest* anchor.
+
+                            // 1. Identify initial movers (widgets directly blocked by the collapsing widget)
+                            // Sort by Y ascending to process top-to-bottom
+                            // Use partial height (e.g. 0.4) so slightly sloppy drag overlaps are caught!
+                            const sortedWidgets = activeWidgets
+                                .filter(w => w.instanceId !== instanceId && w.layout!.y >= inst.layout!.y + (oldH * 0.4))
+                                .sort((a, b) => a.layout!.y - b.layout!.y);
+
+                            // We'll track the requested shift delta per widget
+                            const shifts: Record<string, number> = {};
+
+                            for (const w of sortedWidgets) {
+                                // Find all anchors (widgets above this one that it horizontally overlaps with)
+                                const anchors = activeWidgets.filter(potentialAnchor =>
+                                    potentialAnchor.instanceId !== w.instanceId &&
+                                    potentialAnchor.layout!.y + potentialAnchor.layout!.h <= w.layout!.y + 30 && // 30px forgiveness
+                                    horizOverlap(w, potentialAnchor)
+                                );
+
+                                if (anchors.length === 0) continue; // No anchors = no movement
+
+                                // Is the active collapsing widget one of its anchors?
+                                const isDirectlyAnchoredToTarget = anchors.some(a => a.instanceId === instanceId);
+
+                                // Determine max allowed upward shift
+                                let maxAllowedUpwardShift = Math.abs(dy); // Try to full shift
+
+                                for (const anchor of anchors) {
+                                    if (anchor.instanceId === instanceId) {
+                                        // The collapsing widget allows full shift
+                                        continue;
+                                    }
+
+                                    // Check if this other anchor is shifting
+                                    const anchorShift = shifts[anchor.instanceId] || 0;
+
+                                    // If an anchor isn't moving (or moving less), we are constrained by it.
+                                    // Geometric constraint: We can only move up until we hit the anchor.
+                                    const distanceToAnchor = w.layout!.y - (anchor.layout!.y + anchor.layout!.h);
+
+                                    // Allowed shift from this anchor = how much the anchor moved + the visual gap we have to it
+                                    // The minimum allowed visual gap is 20px.
+                                    const spareDistance = Math.max(0, distanceToAnchor - 20);
+                                    maxAllowedUpwardShift = Math.min(maxAllowedUpwardShift, Math.abs(anchorShift) + spareDistance);
+                                }
+
+                                if (maxAllowedUpwardShift > 0) {
+                                    shifts[w.instanceId] = -maxAllowedUpwardShift; // Negative for moving up
+                                }
+                            }
+
+                            // Apply shifts
+                            Object.entries(shifts).forEach(([id, shift]) => {
+                                const w = nextInstances[id];
+                                // Prevent weird minor pixel shifts, only move if shift is significant
+                                if (Math.abs(shift) > 5) {
+                                    nextInstances[id] = {
+                                        ...w,
+                                        layout: { ...w.layout!, y: w.layout!.y + shift },
+                                        updatedAt: Date.now()
+                                    };
+                                }
+                            });
+
+                        } else if (dy > 0) { // EXPANDING (Pushing Down)
+                            // A widget expands, mechanically "pushing" anything its bottom edge intersects
+
+                            // Initialize "push zones", starting with the expanding widget
+                            const pushers = [{
+                                id: instanceId,
+                                bottomEdge: inst.layout!.y + newH,
+                                left: inst.layout!.x,
+                                right: inst.layout!.x + inst.layout!.w
+                            }];
+
+                            // Sort others by Y to simulate cascade perfectly
+                            const sortedWidgets = activeWidgets
+                                .filter(w => w.instanceId !== instanceId && w.layout!.y >= inst.layout!.y)
+                                .sort((a, b) => a.layout!.y - b.layout!.y);
+
+                            const shifts: Record<string, number> = {};
+
+                            for (const w of sortedWidgets) {
+                                const wTop = w.layout!.y;
+
+                                // See if any pusher intersects us horizontally and pushes into us vertically
+                                let maxPushRequired = 0;
+
+                                for (const pusher of pushers) {
+                                    const overlapX = w.layout!.x < pusher.right && w.layout!.x + w.layout!.w > pusher.left;
+                                    if (overlapX) {
+                                        // A widget expands, dynamically pushing anything in its way.
+                                        // The required push is whatever distance is needed to preserve a 20px gap
+                                        const pushNeeded = Math.round(Math.max(0, pusher.bottomEdge + 20 - wTop));
+
+                                        if (pushNeeded > 5) {
+                                            maxPushRequired = Math.max(maxPushRequired, pushNeeded);
+                                        }
+                                    }
+                                }
+
+                                if (maxPushRequired > 0) {
+                                    shifts[w.instanceId] = maxPushRequired;
+                                    // This widget now becomes a pusher itself at its new hypothetical bottom edge
+                                    pushers.push({
+                                        id: w.instanceId,
+                                        bottomEdge: w.layout!.y + w.layout!.h + maxPushRequired,
+                                        left: w.layout!.x,
+                                        right: w.layout!.x + w.layout!.w
+                                    });
+                                }
+                            }
+
+                            // Apply pushes
+                            Object.entries(shifts).forEach(([id, shift]) => {
+                                const w = nextInstances[id];
+                                if (Math.abs(shift) > 5) {
+                                    nextInstances[id] = {
+                                        ...w,
+                                        layout: { ...w.layout!, y: w.layout!.y + shift },
+                                        updatedAt: Date.now()
+                                    };
+                                }
+                            });
                         }
+
+                        return {
+                            ...pushSnapshot(s),
+                            instances: nextInstances
+                        };
                     }),
 
                 collapseAll: () =>

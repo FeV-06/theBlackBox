@@ -353,23 +353,31 @@ export default function WidgetCard({
             )}
 
             {/* Content area */}
-            {!instance.isCollapsed && (
-                <div className={`
-                    flex-1 min-h-0 overflow-visible relative flex flex-col 
-                    ${isDivider ? "tbb-drag-handle cursor-move touch-none" : ""} 
-                    ${dashboardEditMode && !isDivider ? "pointer-events-none opacity-40 grayscale-[0.5]" : ""}
-                    ${dashboardEditMode && isDivider ? "ring-1 ring-white/10 rounded-lg bg-white/[0.02]" : ""}
-                `}>
-                    {/* Visual grid hint during edit mode */}
-                    {dashboardEditMode && !isDivider && (
-                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-purple-500/30" />
-                    )}
+            <AnimatePresence initial={false}>
+                {!instance.isCollapsed && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className={`
+                        flex-1 min-h-0 overflow-visible relative flex flex-col 
+                        ${isDivider ? "tbb-drag-handle cursor-move touch-none" : ""} 
+                        ${dashboardEditMode && !isDivider ? "pointer-events-none opacity-40 grayscale-[0.5]" : ""}
+                        ${dashboardEditMode && isDivider ? "ring-1 ring-white/10 rounded-lg bg-white/[0.02]" : ""}
+                    `}
+                    >
+                        {/* Visual grid hint during edit mode */}
+                        {dashboardEditMode && !isDivider && (
+                            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-purple-500/30" />
+                        )}
 
-                    <div className="flex-1 min-h-0">
-                        {children}
-                    </div>
-                </div>
-            )}
+                        <div className="flex-1 min-h-0">
+                            {children}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }

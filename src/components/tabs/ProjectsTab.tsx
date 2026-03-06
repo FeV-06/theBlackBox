@@ -74,8 +74,8 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                 </button>
             </div>
 
-            <div className="flex items-center gap-3 mb-2">
-                <div className="w-4 h-4 rounded-full" style={{ background: project.color }} />
+            <div className="flex items-start gap-3 mb-2 w-full">
+                <div className="w-4 h-4 rounded-full mt-1.5 shrink-0" style={{ background: project.color }} />
                 {editingTitle ? (
                     <input
                         autoFocus
@@ -95,12 +95,12 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                             if (titleText.trim()) updateProject(project.id, { name: titleText.trim() });
                             setEditingTitle(false);
                         }}
-                        className="text-xl font-bold bg-transparent outline-none border-b border-white/20 focus:border-[color:var(--color-accent)] transition-colors"
+                        className="text-xl font-bold flex-1 min-w-0 bg-transparent outline-none border-b border-white/20 focus:border-[color:var(--color-accent)] transition-colors break-words text-wrap"
                         style={{ color: "var(--color-text-primary)" }}
                     />
                 ) : (
                     <h2
-                        className="text-xl font-bold cursor-text hover:opacity-80 transition-opacity"
+                        className="text-xl font-bold cursor-text hover:opacity-80 transition-opacity flex-1 min-w-0 break-words"
                         style={{ color: "var(--color-text-primary)" }}
                         onClick={() => {
                             setTitleText(project.name);
@@ -208,11 +208,11 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                                     transition={{ duration: 0.2 }}
                                     className="glass-card p-4 relative group"
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-start gap-3">
                                         {/* Parent Checkbox */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); toggleTask(project.id, task.id); recordWork(project.id); }}
-                                            className="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all hover:scale-110"
+                                            className="w-5 h-5 mt-0.5 rounded-md border flex items-center justify-center shrink-0 transition-all hover:scale-110"
                                             style={{
                                                 borderColor: task.status === "done" ? project.color : "rgba(255,255,255,0.15)",
                                                 background: task.status === "done" ? project.color : "transparent",
@@ -257,7 +257,7 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                                                         setEditTaskText(task.text);
                                                         setEditingTaskId(task.id);
                                                     }}
-                                                    className="flex-1 text-sm cursor-text truncate transition-all"
+                                                    className="flex-1 min-w-0 text-sm cursor-text break-words leading-relaxed transition-all"
                                                     style={{
                                                         textDecoration: task.status === "done" ? "line-through" : "none",
                                                     }}
@@ -307,11 +307,11 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                                                                 initial={{ opacity: 0, x: -5 }}
                                                                 animate={{ opacity: st.completed ? 0.6 : 1, x: 0 }}
                                                                 exit={{ opacity: 0, x: -5 }}
-                                                                className="flex items-center gap-2 group/sub"
+                                                                className="flex items-start gap-2 group/sub w-full"
                                                             >
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); toggleSubtask(project.id, task.id, st.id); }}
-                                                                    className="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all hover:scale-110"
+                                                                    className="w-4 h-4 mt-0.5 rounded border flex items-center justify-center shrink-0 transition-all hover:scale-110"
                                                                     style={{
                                                                         borderColor: st.completed ? "var(--color-accent)" : "rgba(255,255,255,0.1)",
                                                                         background: st.completed ? "var(--color-accent)" : "transparent",
@@ -355,7 +355,7 @@ function ProjectDetail({ project, onBack }: { project: Project; onBack: () => vo
                                                                             setEditSubtaskText(st.text);
                                                                             setEditingSubtaskId(st.id);
                                                                         }}
-                                                                        className="flex-1 text-xs cursor-text transition-all"
+                                                                        className="flex-1 min-w-0 text-xs cursor-text transition-all break-words leading-relaxed"
                                                                         style={{
                                                                             color: st.completed ? "var(--color-text-muted)" : "var(--color-text-secondary)",
                                                                             textDecoration: st.completed ? "line-through" : "none",
@@ -437,7 +437,7 @@ export default function ProjectsTab() {
     const globalProgress = globalTasks > 0 ? (globalCompleted / globalTasks) * 100 : 0;
 
     return (
-        <div className="flex flex-col h-full w-full animate-fade-in p-1">
+        <div className="flex flex-col h-full w-full animate-fade-in p-1 overflow-x-hidden">
             <div className="flex-none flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
@@ -545,11 +545,11 @@ export default function ProjectsTab() {
                                     <div className="flex-1 flex flex-col gap-1.5 mt-2 overflow-hidden mask-bottom">
                                         {inlineTasks.length > 0 ? (
                                             inlineTasks.map(t => (
-                                                <div key={t.id} className="flex items-center gap-2 text-xs">
-                                                    <div className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border ${t.status === 'done' ? `bg-[${project.color}] border-transparent` : 'border-white/20'}`}>
+                                                <div key={t.id} className="flex items-start gap-2 text-xs w-full">
+                                                    <div className={`w-3 h-3 mt-0.5 rounded flex items-center justify-center shrink-0 border ${t.status === 'done' ? `bg-[${project.color}] border-transparent` : 'border-white/20'}`}>
                                                         {t.status === 'done' && <Check size={8} className="text-white" />}
                                                     </div>
-                                                    <span className={`truncate ${t.status === 'done' ? 'text-white/30 line-through' : 'text-white/60'}`}>
+                                                    <span className={`flex-1 min-w-0 truncate ${t.status === 'done' ? 'text-white/30 line-through' : 'text-white/60'}`}>
                                                         {t.text}
                                                     </span>
                                                 </div>

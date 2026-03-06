@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useCallback, memo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { ProjectTask } from "@/types/widget";
-import { Check, GripVertical, ChevronDown } from "lucide-react";
+import { Check, GripVertical, ChevronDown, Pencil } from "lucide-react";
 import { useProjectStore } from "@/store/useProjectStore";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Dialog } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 interface KanbanCardProps {
     task: ProjectTask;
@@ -19,6 +22,13 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
     const { toggleTask, updateTask, deleteTask, toggleSubtask, toggleTaskExpand } = useProjectStore();
     const [editing, setEditing] = useState(false);
     const [editText, setEditText] = useState(task.text);
+
+    // UX Text reading state
+    const [isTextExpanded, setIsTextExpanded] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [rect, setRect] = useState<DOMRect | null>(null);
+    const cardRef = React.useRef<HTMLDivElement | null>(null);
+    const isMobile = useMediaQuery("(max-width: 768px)");
 
     const expanded = task.isExpanded ?? true;
     const hasSubtasks = (task.subtasks?.length || 0) > 0;
@@ -43,22 +53,18 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
     const totalSubtasks = task.subtasks?.length || 0;
     const completedSubtasks = task.subtasks?.filter(st => st.completed).length || 0;
 
-    return (
-        <div
-            ref={isOverlay ? undefined : setNodeRef}
-            style={style}
-            className={`glass-card p-3.5 @md/kanban:p-4 @xl/kanban:p-5 rounded-xl flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 transition-all duration-300 relative overflow-hidden group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"}`}
-        >
+    const renderCardContent = (isExpandedModal = false) => (
+        <>
             {/* Subtle Gradient Glow */}
             <div
-                className="absolute inset-0 opacity-0 group-hover/card:opacity-10 transition-opacity duration-300 pointer-events-none"
+                className="absolute inset-0 opacity-0 group-hover/card:opacity-10 transition-opacity duration-300 pointer-events-none rounded-xl"
                 style={{ background: `linear-gradient(45deg, ${projectColor}33, transparent)` }}
             />
 
             <div className="flex items-start gap-3 relative z-10">
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleTask(projectId, task.id); }}
-                    className="w-4.5 h-4.5 rounded-lg border mt-0.5 flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-90"
+                    className="w-4.5 h-4.5 rounded-lg border mt-0.5 flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-90 cursor-pointer"
                     style={{
                         borderColor: isDone ? projectColor : "rgba(255,255,255,0.15)",
                         background: isDone ? projectColor : "transparent",
@@ -68,7 +74,7 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                     {isDone && <Check size={12} className="text-white" />}
                 </button>
 
-                {editing ? (
+                {editing && !isExpandedModal ? (
                     <input
                         autoFocus
                         value={editText}
@@ -92,18 +98,25 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                         }}
                         onClick={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="flex-1 text-[13px] bg-white/5 rounded px-2 py-0.5 outline-none border-b-2 border-transparent focus:border-[color:var(--color-accent)] transition-all"
+                        className="flex-1 min-w-0 text-[13px] bg-white/5 rounded px-2 py-0.5 outline-none border-b-2 border-transparent focus:border-[color:var(--color-accent)] transition-all"
                         style={{ color: "var(--color-text-primary)" }}
                     />
                 ) : (
                     <span
                         onClick={(e) => {
                             e.stopPropagation();
-                            setEditText(task.text);
-                            setEditing(true);
+                            if (isMobile) {
+                                setIsTextExpanded(!isTextExpanded);
+                            } else {
+                                if (cardRef.current && !isModalOpen) {
+                                    setRect(cardRef.current.getBoundingClientRect());
+                                }
+                                setIsModalOpen(true);
+                            }
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="flex-1 text-[13px] @md/kanban:text-[15px] @xl/kanban:text-[17px] font-medium leading-relaxed cursor-text outline-none transition-all"
+                        className={`flex-1 min-w-0 break-words text-[13px] @md/kanban:text-[15px] @xl/kanban:text-[17px] font-medium leading-relaxed cursor-pointer outline-none transition-all ${(isMobile && isTextExpanded) || isExpandedModal ? "" : "line-clamp-3"
+                            }`}
                         style={{
                             color: isDone ? "var(--color-text-muted)" : "var(--color-text-primary)",
                             textDecoration: isDone ? "line-through" : "none"
@@ -114,7 +127,22 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                 )}
 
                 {/* Actions group */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
+                    {!isExpandedModal && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setEditText(task.text);
+                                setEditing(true);
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="p-1 rounded-lg hover:bg-white/5 transition-all text-white/20 hover:text-white/60 cursor-pointer"
+                            title="Edit Task"
+                        >
+                            <Pencil size={14} />
+                        </button>
+                    )}
+
                     {hasSubtasks && (
                         <button
                             onClick={(e) => {
@@ -122,7 +150,7 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                                 toggleTaskExpand(projectId, task.id);
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="p-1 rounded-lg hover:bg-white/5 transition-all text-white/20 hover:text-white/60"
+                            className="p-1 rounded-lg hover:bg-white/5 transition-all text-white/20 hover:text-white/60 cursor-pointer"
                         >
                             <ChevronDown
                                 size={14}
@@ -134,13 +162,15 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                         </button>
                     )}
 
-                    <div
-                        {...(isOverlay ? {} : attributes)}
-                        {...(isOverlay ? {} : listeners)}
-                        className={`text-white/10 hover:text-white/30 p-1.5 -mr-1 touch-none ${isOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
-                    >
-                        <GripVertical size={14} />
-                    </div>
+                    {!isExpandedModal && (
+                        <div
+                            {...(isOverlay ? {} : attributes)}
+                            {...(isOverlay ? {} : listeners)}
+                            className={`text-white/10 hover:text-white/30 p-1.5 -mr-1 touch-none ${isOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
+                        >
+                            <GripVertical size={14} />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -189,6 +219,50 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                     <span className="text-[9px] font-bold opacity-20">{completedSubtasks}/{totalSubtasks}</span>
                 </div>
             )}
+        </>
+    );
+
+    return (
+        <div
+            ref={(node) => {
+                if (!isOverlay) setNodeRef(node);
+                cardRef.current = node;
+            }}
+            style={style}
+            className={`glass-card p-3.5 @md/kanban:p-4 @xl/kanban:p-5 rounded-xl flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 transition-all duration-300 relative group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"} ${isModalOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${!isModalOpen ? 'overflow-hidden' : ''}`}
+        >
+            {renderCardContent(false)}
+
+            {/* Desktop Focus Modal over actual Card position */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                {isModalOpen && rect && (
+                    <DialogPrimitive.Portal>
+                        <DialogPrimitive.Overlay
+                            className="fixed inset-0 z-[101] bg-[#0A0A0F]/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+                            onClick={() => setIsModalOpen(false)}
+                        />
+                        <DialogPrimitive.Content
+                            onInteractOutside={() => setIsModalOpen(false)}
+                            onEscapeKeyDown={() => setIsModalOpen(false)}
+                            className="fixed z-[101] flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+                            style={{
+                                top: rect.top,
+                                left: rect.left,
+                                width: rect.width,
+                                background: 'rgba(20, 20, 28, 0.95)',
+                                backdropFilter: 'blur(16px)',
+                                padding: '1.25rem', // Match internal card padding approx
+                                borderRadius: '0.75rem', // xl
+                                boxShadow: `0 0 50px ${projectColor}80, 0 0 0 1px rgba(255,255,255,0.1)`,
+                                transformOrigin: 'top center',
+                            }}
+                        >
+                            <DialogPrimitive.Title className="sr-only">Task Details</DialogPrimitive.Title>
+                            {renderCardContent(true)}
+                        </DialogPrimitive.Content>
+                    </DialogPrimitive.Portal>
+                )}
+            </Dialog>
         </div>
     );
 }

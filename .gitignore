@@ -43,3 +43,4 @@ yarn-error.log*
 # ─── Agent / AI Workspace (local tooling only) ────────────────────────────────
 .agents/
 .agent/
+

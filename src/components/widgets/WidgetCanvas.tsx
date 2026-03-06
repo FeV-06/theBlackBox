@@ -268,6 +268,7 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
     const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({ vertical: [], horizontal: [] });
     const [animatedLayoutOverrides, setAnimatedLayoutOverrides] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({});
     const [guidesVisible, setGuidesVisible] = useState(false);
+    const [interactingId, setInteractingId] = useState<string | null>(null);
 
     // Track Viewport
     const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -352,7 +353,7 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
     /* ── Group Logic (BFS) ── */
     const groups = useMemo(() => {
         const groupable = visibleInstances.filter(i => !i.groupDisabled && i.type !== "section_divider");
-        const standalone = visibleInstances.filter(i => i.groupDisabled);
+        const standalone = visibleInstances.filter(i => i.groupDisabled || i.type === "section_divider");
 
         const nodes = groupable.map(i => i.instanceId);
         const adj: Record<string, string[]> = {};
@@ -780,6 +781,8 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 const opacity = Math.max(0.35, 0.75 - i * 0.15);
                                 const blur = 1 + i * 0.5;
 
+                                const isInteracting = interactingId === activeId;
+
                                 return (
                                     <div
                                         key={`prev-${bgId}`}
@@ -792,7 +795,10 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                             transform: `scale(${scale})`,
                                             opacity: opacity,
                                             filter: `blur(${blur}px)`,
-                                            zIndex: 10 + i
+                                            zIndex: 10 + i,
+                                            transition: !isInteracting
+                                                ? "left 0.4s cubic-bezier(0.19, 1, 0.22, 1), top 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s cubic-bezier(0.19, 1, 0.22, 1)"
+                                                : "none"
                                         }}
                                     >
                                         <WidgetStackPreview definition={def} title={inst.title || def.defaultTitle} />
@@ -817,23 +823,24 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                         top: false,
                                         topLeft: false,
                                         topRight: false,
-                                        left: false,
+                                        left: true, // Allow left resizing for collapsed/dividers horizontally
                                         bottomLeft: false,
                                     } : {
                                         bottom: true,
                                         bottomRight: true,
                                         right: true,
-                                        top: false,
-                                        topLeft: false,
-                                        topRight: false,
-                                        left: false,
-                                        bottomLeft: false,
+                                        top: true,
+                                        topLeft: true,
+                                        topRight: true,
+                                        left: true,
+                                        bottomLeft: true,
                                     }
                                 ) : false}
                                 dragHandleClassName="tbb-drag-handle"
                                 minWidth={activeInstance.type === "section_divider" ? 100 : 280}
                                 minHeight={activeInstance.isCollapsed ? (activeInstance.collapsedHeight ?? 64) : (activeInstance.type === "section_divider" ? 40 : 180)}
                                 onDragStart={(e) => {
+                                    setInteractingId(activeId);
                                     if (scrollRef.current) {
                                         dragScrollStartRef.current = {
                                             left: scrollRef.current.scrollLeft,
@@ -929,6 +936,7 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                     }
                                 }}
                                 onDragStop={(e, d) => {
+                                    setInteractingId(null);
                                     stopAutoScroll();
                                     liveBoundsRef.current = { maxRight: 0, maxBottom: 0 }; // Reset
 
@@ -1037,7 +1045,10 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                         scrollCompRef.current = { dx: 0, dy: 0 };
                                     });
                                 }}
-                                onResizeStart={() => startAutoScroll()}
+                                onResizeStart={() => {
+                                    setInteractingId(activeId);
+                                    startAutoScroll();
+                                }}
                                 onResize={(e, direction, ref, delta, pos) => {
                                     // V4.4: Explicit pointer update from Resize Event
                                     if ("clientX" in e && "clientY" in e) {
@@ -1076,6 +1087,7 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                     }
                                 }}
                                 onResizeStop={(e, direction, ref, delta, pos) => {
+                                    setInteractingId(null);
                                     stopAutoScroll();
                                     liveBoundsRef.current = { maxRight: 0, maxBottom: 0 };
 
@@ -1151,6 +1163,9 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
                                 }}
                                 style={{
                                     zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
+                                    transition: (interactingId !== activeId && !animatedLayoutOverrides[activeId])
+                                        ? "transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.3s ease"
+                                        : "box-shadow 0.3s ease",
                                 }}
                                 className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''} touch-none`}
                             >
