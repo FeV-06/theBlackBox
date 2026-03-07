@@ -32,9 +32,9 @@ export default function Header() {
                         border border-white/[0.08]
                         rounded-xl
                         transition-all duration-200 ease-out
-                        hover:border-purple-400/40 hover:bg-white/[0.06] hover:shadow-[0_0_20px_rgba(124,92,255,0.15)]
-                        focus-within:border-purple-500 focus-within:bg-white/[0.08] 
-                        focus-within:ring-2 focus-within:ring-purple-500/30
+                        hover:border-emerald-400/40 hover:bg-white/[0.06] hover:shadow-[0_0_20px_var(--color-accent-glow)]
+                        focus-within:border-emerald-500 focus-within:bg-white/[0.08] 
+                        focus-within:ring-2 focus-within:ring-emerald-500/30
                         focus-within:scale-[1.02] active:scale-[0.98]
                         group
                     "

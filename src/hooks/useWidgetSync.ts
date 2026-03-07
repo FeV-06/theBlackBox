@@ -82,7 +82,7 @@ export function useWidgetSync() {
             const supabase = createClient();
             const { data: layoutRow } = await supabase
                 .from("widget_layouts")
-                .select("layout")
+                .select("layout, canvases, layouts, active_canvas_id")
                 .eq("user_id", user.id)
                 .single();
 
@@ -110,7 +110,33 @@ export function useWidgetSync() {
 
                 useSettingsStore.getState().setHasCompletedSetup(true);
 
-                return { instances: mergedInstances, layout: finalLayout };
+                // Multi-canvas setup
+                let syncedCanvases = layoutRow?.canvases || undefined;
+                let syncedLayouts = layoutRow?.layouts || undefined;
+                let syncedActiveId = layoutRow?.active_canvas_id || undefined;
+
+                if (!syncedCanvases || !Array.isArray(syncedCanvases) || syncedCanvases.length === 0 || !syncedLayouts) {
+                    console.log("[Sync] Hydrating legacy canvas config");
+                    syncedCanvases = [{ id: "main", name: "Main Canvas" }];
+
+                    const positions: Record<string, any> = {};
+                    finalLayout.forEach(instId => {
+                        if (mergedInstances[instId]?.layout) {
+                            positions[instId] = { ...mergedInstances[instId].layout };
+                        }
+                    });
+
+                    syncedLayouts = { "main": { order: finalLayout, positions } };
+                    syncedActiveId = "main";
+                }
+
+                return {
+                    instances: mergedInstances,
+                    layout: finalLayout,
+                    canvases: syncedCanvases,
+                    layouts: syncedLayouts,
+                    activeCanvasId: syncedActiveId
+                };
             });
 
             hydrateIds.forEach(id => remoteAppliedIds.delete(id));
@@ -155,9 +181,34 @@ export function useWidgetSync() {
             if (layoutDebounceRef.current) clearTimeout(layoutDebounceRef.current);
             layoutDebounceRef.current = setTimeout(async () => {
                 const supabase = createClient();
+                // 1. Capture current spatial positions for the active canvas
+                const currentPositions: Record<string, any> = {};
+                state.layout.forEach(instId => {
+                    const inst = state.instances[instId];
+                    if (inst?.layout) {
+                        currentPositions[instId] = { ...inst.layout };
+                    }
+                });
+
+                // 2. Build the fully updated layouts map for persistence
+                const updatedLayouts = {
+                    ...state.layouts,
+                    [state.activeCanvasId]: {
+                        order: [...state.layout],
+                        positions: currentPositions
+                    }
+                };
+
                 await supabase
                     .from("widget_layouts")
-                    .upsert({ user_id: user.id, layout: state.layout, updated_at: new Date().toISOString() });
+                    .upsert({
+                        user_id: user.id,
+                        layout: state.layout,
+                        canvases: state.canvases,
+                        layouts: updatedLayouts,
+                        active_canvas_id: state.activeCanvasId,
+                        updated_at: new Date().toISOString()
+                    });
             }, 2000);
         });
 

@@ -33,6 +33,7 @@ interface SettingsState {
     gmailPresets: GmailPreset[];
     dashboardEditMode: boolean;
     hasCompletedSetup: boolean;
+    enablePremiumVisuals: boolean;
     setCommandPaletteTheme: (theme: CommandPaletteTheme) => void;
     setQuoteVibe: (vibe: QuoteVibe) => void;
     addBookmark: (title: string, url: string) => void;
@@ -49,6 +50,7 @@ interface SettingsState {
     toggleDashboardEditMode: () => void;
     setDashboardEditMode: (value: boolean) => void;
     setHasCompletedSetup: (value: boolean) => void;
+    setEnablePremiumVisuals: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -66,6 +68,7 @@ export const useSettingsStore = create<SettingsState>()(
             gmailPresets: DEFAULT_GMAIL_PRESETS,
             dashboardEditMode: false,
             hasCompletedSetup: false,
+            enablePremiumVisuals: true,
 
             setCommandPaletteTheme: (theme) => set({ commandPaletteTheme: theme }),
             setQuoteVibe: (vibe) => set({ quoteVibe: vibe }),
@@ -144,6 +147,7 @@ export const useSettingsStore = create<SettingsState>()(
                 }));
             },
             setHasCompletedSetup: (value) => set({ hasCompletedSetup: value }),
+            setEnablePremiumVisuals: (value) => set({ enablePremiumVisuals: value }),
         }),
         {
             name: "tbb-settings",

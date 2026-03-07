@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
     Plus,
     Trash2,
@@ -415,10 +415,40 @@ export default function ProjectsTab() {
     const [desc, setDesc] = useState("");
     const [color, setColor] = useState(PROJECT_COLORS[0]);
 
+    // Mouse Parallax Logic
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+    const springX = useSpring(mouseX, { stiffness: 50, damping: 20 });
+    const springY = useSpring(mouseY, { stiffness: 50, damping: 20 });
+
+    const parallaxX = useTransform(springX, [0, 1000], [5, -5]);
+    const parallaxY = useTransform(springY, [0, 1000], [5, -5]);
+    const heavyParallaxX = useTransform(springX, [0, 1000], [15, -15]);
+    const heavyParallaxY = useTransform(springY, [0, 1000], [15, -15]);
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        mouseX.set(e.clientX);
+        mouseY.set(e.clientY);
+    };
+
     const selected = projects.find((p) => p.id === selectedId);
 
     if (selected) {
-        return <ProjectDetail project={selected} onBack={() => setSelectedId(null)} />;
+        return (
+            <div onMouseMove={handleMouseMove} className="w-full h-full relative overflow-hidden">
+                {/* Parallax Background for Detail View */}
+                <motion.div
+                    style={{ x: parallaxX, y: parallaxY }}
+                    className="absolute inset-0 pointer-events-none opacity-[0.02] overflow-hidden"
+                >
+                    <div className="absolute top-0 left-1/4 w-px h-full bg-white shadow-[0_0_15px_white]" />
+                    <div className="absolute top-1/4 left-0 w-full h-px bg-white shadow-[0_0_15px_white]" />
+                </motion.div>
+                <div className="relative z-10 w-full h-full p-1 overflow-y-auto">
+                    <ProjectDetail project={selected} onBack={() => setSelectedId(null)} />
+                </div>
+            </div>
+        );
     }
 
     const handleCreate = () => {
@@ -437,13 +467,36 @@ export default function ProjectsTab() {
     const globalProgress = globalTasks > 0 ? (globalCompleted / globalTasks) * 100 : 0;
 
     return (
-        <div className="flex flex-col h-full w-full animate-fade-in p-1 overflow-x-hidden">
-            <div className="flex-none flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
-                        Projects
-                    </h1>
-                </div>
+        <div
+            onMouseMove={handleMouseMove}
+            className="flex flex-col h-full w-full animate-fade-in p-1 overflow-x-hidden relative"
+        >
+            {/* Fragmentation Layer: Kinetic Background Decoration */}
+            <motion.div
+                style={{ x: parallaxX, y: parallaxY }}
+                className="absolute inset-0 pointer-events-none opacity-[0.03] overflow-hidden"
+            >
+                <div className="absolute top-0 right-1/4 w-px h-full bg-white shadow-[0_0_15px_white]" />
+                <div className="absolute bottom-1/3 left-0 w-full h-px bg-white shadow-[0_0_15px_white]" />
+                <motion.div
+                    style={{ x: heavyParallaxX, y: heavyParallaxY, rotate: 15 }}
+                    className="absolute top-24 -left-24 w-96 h-96 border border-white opacity-20"
+                />
+                {/* Kinetic Grain Layer */}
+                <div className="absolute inset-0 noise-overlay opacity-[0.15] mix-blend-overlay" />
+            </motion.div>
+
+            {/* Editorial Watermark - Kinetic Editorial Layering */}
+            <motion.div
+                style={{ x: heavyParallaxX, y: heavyParallaxY, color: "var(--color-text-primary)" }}
+                className="absolute -top-12 opacity-5 select-none pointer-events-none transition-all duration-700 font-black text-9xl tracking-[-0.05em] translate-y-2"
+            >
+                PROJECTS
+            </motion.div>
+
+            <div className="flex-none flex items-center justify-between mb-6 relative z-10">
+                {/* Header Spacer - Maintains editorial balance without redundant text */}
+                <div className="h-12" />
                 {!showCreate && (
                     <button onClick={() => setShowCreate(true)} className="btn-accent flex items-center gap-2">
                         <Plus size={16} /> New Project
@@ -456,7 +509,7 @@ export default function ProjectsTab() {
                 <motion.div
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex-none bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-5 mb-6"
+                    className="flex-none bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-5 mb-6 relative z-10"
                 >
                     <h3 className="text-sm font-medium mb-3" style={{ color: "var(--color-text-primary)" }}>
                         Create Project
@@ -499,10 +552,16 @@ export default function ProjectsTab() {
             )}
 
             {/* Scrollable Container for Grid */}
-            <div className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 ${projects.length < 3 ? "flex flex-col justify-center" : ""}`}>
-                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${projects.length < 3 ? "max-w-5xl mx-auto w-full" : ""}`}>
-
-                    <AnimatePresence>
+            <div className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 relative z-10 ${projects.length < 3 ? "flex flex-col justify-center" : ""}`}>
+                <motion.div
+                    variants={{
+                        animate: { transition: { staggerChildren: 0.1 } }
+                    }}
+                    initial="initial"
+                    animate="animate"
+                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${projects.length < 3 ? "max-w-5xl mx-auto w-full" : ""}`}
+                >
+                    <AnimatePresence mode="popLayout">
                         {projects.map((project) => {
                             const projectTotalItems = project.tasks.length + project.tasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0);
                             const projectCompletedItems = project.tasks.filter(t => t.status === "done").length +
@@ -515,13 +574,21 @@ export default function ProjectsTab() {
                             return (
                                 <motion.div
                                     key={project.id}
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    className="bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-4 cursor-pointer group flex flex-col hover:bg-white/[0.05] transition-colors h-[180px]"
+                                    variants={{
+                                        initial: { opacity: 0, y: 20 },
+                                        animate: { opacity: 1, y: 0 }
+                                    }}
+                                    whileHover={{
+                                        y: -8,
+                                        scale: 1.02,
+                                        boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+                                    }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className="bg-white/[0.03] border border-white/[0.06] backdrop-blur-xl rounded-2xl p-4 cursor-pointer group flex flex-col hover:bg-white/[0.05] transition-all h-[180px] relative overflow-hidden"
                                     onClick={() => setSelectedId(project.id)}
                                 >
+                                    {/* Kinetic Background Fragment for Card */}
+                                    <div className="absolute top-0 right-0 w-24 h-24 border-b border-l border-white/[0.03] rotate-45 translate-x-12 -translate-y-12 pointer-events-none group-hover:bg-white/[0.01] transition-colors" />
                                     {/* Header Row */}
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2 max-w-[70%]">
@@ -582,14 +649,22 @@ export default function ProjectsTab() {
                         <>
                             {/* Fill Slot 1: Insights Panel */}
                             <motion.div
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                                className="bg-white/[0.02] border border-white/[0.04] border-dashed rounded-2xl p-4 flex flex-col h-[180px]"
+                                variants={{
+                                    initial: { opacity: 0, y: 20 },
+                                    animate: { opacity: 1, y: 0 }
+                                }}
+                                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                className="bg-white/[0.02] border border-white/[0.04] border-dashed rounded-2xl p-4 flex flex-col h-[180px] relative overflow-hidden group/pulse"
                             >
-                                <div className="flex items-center gap-2 mb-4 opacity-50">
+                                <motion.div
+                                    style={{ x: parallaxX, y: parallaxY }}
+                                    className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full border border-white/[0.03] pointer-events-none"
+                                />
+                                <div className="flex items-center gap-2 mb-4 opacity-50 relative z-10">
                                     <BarChart2 size={14} className="text-white" />
                                     <span className="text-[10px] font-bold tracking-widest uppercase text-white">Workspace Pulse</span>
                                 </div>
-                                <div className="flex-1 flex flex-col justify-center gap-3">
+                                <div className="flex-1 flex flex-col justify-center gap-3 relative z-10">
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-bold text-white/40">Total Projects</span>
                                         <span className="text-sm font-mono font-bold text-white/80">{totalProjects}</span>
@@ -600,7 +675,7 @@ export default function ProjectsTab() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-bold text-white/40">Global Completion</span>
-                                        <span className="text-sm font-mono font-bold text-[#4ADE80]">{Math.round(globalProgress)}%</span>
+                                        <span className="text-sm font-mono font-bold text-[#4ADE80] text-glow">{Math.round(globalProgress)}%</span>
                                     </div>
                                 </div>
                             </motion.div>
@@ -608,20 +683,31 @@ export default function ProjectsTab() {
                             {/* Fill Slot 2: Quick Actions (only if we only have 0 or 1 projects to keep it to max 3 items) */}
                             {projects.length < 2 && (
                                 <motion.div
-                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                                    className="bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 flex flex-col h-[180px] items-center justify-center text-center gap-3 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                    variants={{
+                                        initial: { opacity: 0, y: 20 },
+                                        animate: { opacity: 1, y: 0 }
+                                    }}
+                                    whileHover={{
+                                        y: -5,
+                                        backgroundColor: "rgba(255,255,255,0.03)",
+                                        boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
+                                    }}
+                                    className="bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 flex flex-col h-[180px] items-center justify-center text-center gap-3 transition-all cursor-pointer relative overflow-hidden group/action"
                                     onClick={() => setShowCreate(true)}
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center mb-1">
-                                        <Plus size={20} className="text-white/60" />
-                                    </div>
-                                    <span className="text-sm font-bold text-white/60">Create a New Project</span>
+                                    <motion.div
+                                        whileHover={{ rotate: 90, scale: 1.1 }}
+                                        className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center mb-1 group-hover/action:bg-[color:var(--color-accent-glow)] group-hover/action:text-[color:var(--color-accent)] transition-all shadow-lg"
+                                    >
+                                        <Plus size={20} className="text-white/60 group-hover/action:text-[color:var(--color-accent)]" />
+                                    </motion.div>
+                                    <span className="text-sm font-bold text-white/60 group-hover/action:text-white transition-colors">Create a New Project</span>
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Quick Action</span>
                                 </motion.div>
                             )}
                         </>
                     )}
-                </div>
+                </motion.div>
             </div>
         </div>
     );

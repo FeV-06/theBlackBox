@@ -89,8 +89,15 @@ interface WidgetGridProps {
     onNavigate?: (tab: TabId) => void;
 }
 
+import { useShallow } from "zustand/react/shallow";
+
 export default function WidgetGrid({ onNavigate }: WidgetGridProps) {
-    const { instances, layout, reorder } = useWidgetStore();
+    const { instances, layout, reorder, activeCanvasId } = useWidgetStore(useShallow(s => ({
+        instances: s.instances,
+        layout: s.layout,
+        reorder: s.reorder,
+        activeCanvasId: s.activeCanvasId
+    })));
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -105,7 +112,19 @@ export default function WidgetGrid({ onNavigate }: WidgetGridProps) {
         const result: { instance: WidgetInstance; definition: WidgetTypeDefinition }[] = [];
         for (const id of layout) {
             const inst = instances[id];
-            if (!inst || !inst.enabled) continue;
+
+            // Layout Safety Guard: skip widgets that don't exist in the instance map.
+            // This handles both soft-deleted widgets (whose record is gone from Zustand
+            // after a sync) and stale IDs left over from canvas manipulation.
+            if (!inst) {
+                if (process.env.NODE_ENV === "development") {
+                    console.warn(`[WidgetGrid] Layout references unknown widget id "${id}". Skipping (safe to ignore after canvas operations).`);
+                }
+                continue;
+            }
+
+            if (!inst.enabled) continue;
+
             const def = registryMap.get(inst.type);
             if (!def) {
                 console.warn(`[WidgetGrid] Widget type "${inst.type}" (instance "${id}") has no registered definition. Skipping.`);
@@ -126,7 +145,7 @@ export default function WidgetGrid({ onNavigate }: WidgetGridProps) {
 
     return (
         <DndContext id="tbb-widget-grid" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={visibleItems.map((v) => v.instance.instanceId)} strategy={rectSortingStrategy}>
+            <SortableContext key={activeCanvasId} items={visibleItems.map((v) => v.instance.instanceId)} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
                     {visibleItems.map(({ instance, definition }) => (
                         <SortableWidget

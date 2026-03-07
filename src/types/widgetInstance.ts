@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
+import type { WidgetConfigSchema } from "@/widgets/types";
 
 /** All possible widget types in the system */
 export type WidgetType =
@@ -14,7 +15,10 @@ export type WidgetType =
     | "gmail"
     | "section_divider"
     | "kanban"
-    | "insights";
+    | "insights"
+    | "api-widget"
+    | "text-widget"
+    | "counter-widget";
 
 export interface WidgetLayout {
     x: number;
@@ -26,6 +30,7 @@ export interface WidgetLayout {
 export interface WidgetInstance {
     instanceId: string;
     type: WidgetType;
+    version?: number;
     title?: string;
     enabled: boolean;
     createdAt: number;
@@ -73,4 +78,5 @@ export interface WidgetTypeDefinition {
     component: ComponentType<{ instance: WidgetInstance }>;
     allowMultiple: boolean;
     defaultConfig: Record<string, unknown>;
+    configSchema?: WidgetConfigSchema;
 }

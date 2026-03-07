@@ -5,10 +5,15 @@ import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { registryMap } from "@/lib/widgetRegistry";
 import type { WidgetInstance } from "@/types/widgetInstance";
+import { widgetTemplateRegistry } from "@/widgets/registry";
+import { LayoutGrid } from "lucide-react";
 
 interface MobileLaunchpadProps {
     widgets: WidgetInstance[];
     onFocus: (id: string) => void;
+    canvasName?: string;
+    canvasesCount?: number;
+    currentCanvasIndex?: number;
 }
 
 const containerVariants = {
@@ -35,7 +40,13 @@ const cardVariants = {
     exit: { opacity: 0, scale: 0.96, transition: { duration: 0.15 } },
 };
 
-export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadProps) {
+export default function MobileLaunchpad({
+    widgets,
+    onFocus,
+    canvasName = "Dashboard",
+    canvasesCount = 1,
+    currentCanvasIndex = 0
+}: MobileLaunchpadProps) {
     const [jumpOpen, setJumpOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -68,17 +79,39 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
         >
             {/* ── Header ── */}
             <motion.div
-                className="flex-shrink-0 px-5 pt-10 pb-3"
+                className="flex-shrink-0 px-5 pt-10 pb-3 flex justify-between items-start"
                 variants={cardVariants}
             >
-                <p className="text-[11px] font-medium tracking-[0.18em] uppercase mb-1"
-                    style={{ color: "var(--color-text-muted)" }}>
-                    {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                </p>
-                <h1 className="text-2xl font-semibold tracking-tight"
-                    style={{ color: "var(--color-text-primary)" }}>
-                    {greeting} ✦
-                </h1>
+                <div>
+                    <p className="text-[11px] font-medium tracking-[0.18em] uppercase mb-1"
+                        style={{ color: "var(--color-text-muted)" }}>
+                        {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                    </p>
+                    <h1 className="text-2xl font-semibold tracking-tight"
+                        style={{ color: "var(--color-text-primary)" }}>
+                        {greeting} ✦
+                    </h1>
+                </div>
+
+                {/* Canvas Indicator */}
+                {canvasesCount > 1 && (
+                    <div className="flex flex-col items-end gap-1.5 mt-1">
+                        <span className="text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/50 pb-[3px]">
+                            {canvasName}
+                        </span>
+                        <div className="flex items-center gap-1.5 pr-1">
+                            {Array.from({ length: canvasesCount }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${i === currentCanvasIndex
+                                        ? "w-3 bg-white/80"
+                                        : "w-1.5 bg-white/20"
+                                        }`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </motion.div>
 
             {/* ── Widget Grid — auto stretches to fill space ── */}
@@ -90,9 +123,12 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
                     <AnimatePresence mode="popLayout">
                         {widgets.map((inst, index) => {
                             const def = registryMap.get(inst.type);
-                            if (!def) return null;
-                            const Icon = def.icon;
-                            const label = inst.title || def.defaultTitle;
+                            const manifest = !def ? widgetTemplateRegistry.get(inst.type) : null;
+
+                            if (!def && !manifest) return null;
+
+                            const Icon = def?.icon || LayoutGrid;
+                            const label = inst.title || def?.defaultTitle || manifest?.name || inst.type;
 
                             return (
                                 <motion.button
@@ -166,8 +202,11 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
                         <div className="max-h-64 overflow-y-auto overscroll-contain">
                             {widgets.map((inst) => {
                                 const def = registryMap.get(inst.type);
-                                if (!def) return null;
-                                const Icon = def.icon;
+                                const manifest = !def ? widgetTemplateRegistry.get(inst.type) : null;
+
+                                if (!def && !manifest) return null;
+
+                                const Icon = def?.icon || LayoutGrid;
                                 return (
                                     <button
                                         key={inst.instanceId}
@@ -179,7 +218,7 @@ export default function MobileLaunchpad({ widgets, onFocus }: MobileLaunchpadPro
                                     >
                                         <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} strokeWidth={1.8} />
                                         <span className="text-[13px] truncate" style={{ color: "var(--color-text-secondary)" }}>
-                                            {inst.title || def.defaultTitle}
+                                            {inst.title || def?.defaultTitle || manifest?.name || inst.type}
                                         </span>
                                     </button>
                                 );

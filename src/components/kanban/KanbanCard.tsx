@@ -11,6 +11,8 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Dialog } from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
+import { useMotionValue, useSpring, useTransform } from "framer-motion";
+
 interface KanbanCardProps {
     task: ProjectTask;
     projectId: string;
@@ -47,6 +49,34 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
         transition,
         zIndex: isDragging ? 50 : 1,
         opacity: isDragging ? 0.4 : 1,
+    };
+
+    // Kinetic Corner Physics
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+    const springX = useSpring(mouseX, { stiffness: 300, damping: 30 });
+    const springY = useSpring(mouseY, { stiffness: 300, damping: 30 });
+
+    const tlX = useTransform(springX, [-10, 0], [-3, 0]);
+    const tlY = useTransform(springY, [-10, 0], [-3, 0]);
+    const trX = useTransform(springX, [0, 10], [0, 3]);
+    const trY = useTransform(springY, [-10, 0], [-3, 0]);
+    const blX = useTransform(springX, [-10, 0], [-3, 0]);
+    const blY = useTransform(springY, [0, 10], [0, 3]);
+    const brX = useTransform(springX, [0, 10], [0, 3]);
+    const brY = useTransform(springY, [0, 10], [0, 3]);
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        mouseX.set(x);
+        mouseY.set(y);
+    };
+
+    const handleMouseLeave = () => {
+        mouseX.set(0);
+        mouseY.set(0);
     };
 
     const isDone = task.status === "done";
@@ -228,9 +258,30 @@ function KanbanCardInner({ task, projectId, projectColor, isOverlay }: KanbanCar
                 if (!isOverlay) setNodeRef(node);
                 cardRef.current = node;
             }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
             style={style}
             className={`glass-card p-3.5 @md/kanban:p-4 @xl/kanban:p-5 rounded-xl flex flex-col gap-3 @md/kanban:gap-4 @xl/kanban:gap-5 transition-all duration-300 relative group/card ${isOverlay ? "shadow-2xl scale-105 border-white/20 z-50 cursor-grabbing" : "hover:border-white/10"} ${isModalOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${!isModalOpen ? 'overflow-hidden' : ''}`}
         >
+            {/* Kinetic Corner Brackets - Phased Expansion */}
+            <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+                {[
+                    { pos: "top-1.5 left-1.5", border: "border-t border-l", x: tlX, y: tlY },
+                    { pos: "top-1.5 right-1.5", border: "border-t border-r", x: trX, y: trY },
+                    { pos: "bottom-1.5 left-1.5", border: "border-b border-l", x: blX, y: blY },
+                    { pos: "bottom-1.5 right-1.5", border: "border-b border-r", x: brX, y: brY }
+                ].map((corner, i) => (
+                    <motion.div
+                        key={i}
+                        className={`absolute w-2.5 h-2.5 ${corner.pos} ${corner.border} opacity-0 group-hover/card:opacity-40 transition-opacity duration-300`}
+                        style={{
+                            borderColor: projectColor,
+                            x: corner.x,
+                            y: corner.y
+                        }}
+                    />
+                ))}
+            </div>
             {renderCardContent(false)}
 
             {/* Desktop Focus Modal over actual Card position */}

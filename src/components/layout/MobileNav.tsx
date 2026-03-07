@@ -7,6 +7,7 @@ import {
     Focus,
     CalendarDays,
     Settings,
+    LayoutGrid,
 } from "lucide-react";
 import type { TabId } from "@/types/widget";
 
@@ -20,6 +21,7 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
     { id: "projects", icon: FolderKanban, label: "Projects" },
     { id: "focus", icon: Focus, label: "Focus" },
     { id: "calendar", icon: CalendarDays, label: "Calendar" },
+    { id: "widgets", icon: LayoutGrid, label: "Widgets" },
     { id: "settings", icon: Settings, label: "Settings" },
 ];
 

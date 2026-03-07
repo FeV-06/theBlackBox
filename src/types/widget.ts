@@ -28,7 +28,7 @@ export interface WidgetDefinition {
     defaultEnabled: boolean;
 }
 
-export type TabId = "dashboard" | "projects" | "focus" | "calendar" | "settings";
+export type TabId = "dashboard" | "projects" | "focus" | "calendar" | "widgets" | "settings";
 
 export interface Todo {
     id: string;
@@ -49,7 +49,7 @@ export interface FocusSession {
     startTime: number;
     endTime: number;
     duration: number; // seconds
-    type: "normal" | "pomodoro";
+    type: "normal" | "pomodoro" | "timer";
 }
 
 export interface ProjectSubtask {

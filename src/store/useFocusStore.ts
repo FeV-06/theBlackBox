@@ -11,7 +11,8 @@ interface FocusState {
     isPaused: boolean;
     startTime: number | null;
     elapsed: number; // seconds
-    mode: "normal" | "pomodoro";
+    mode: "normal" | "pomodoro" | "timer";
+    timerDuration: number; // minutes
     pomodoroWork: number; // minutes
     pomodoroBreak: number; // minutes
     pomodoroPhase: "work" | "break";
@@ -21,9 +22,10 @@ interface FocusState {
     resumeSession: () => void;
     stopSession: () => void;
     tick: () => void;
-    setMode: (mode: "normal" | "pomodoro") => void;
+    setMode: (mode: "normal" | "pomodoro" | "timer") => void;
     setPomodoroWork: (mins: number) => void;
     setPomodoroBreak: (mins: number) => void;
+    setTimerDuration: (mins: number) => void;
     clearSessions: () => void;
 }
 
@@ -40,6 +42,7 @@ export const useFocusStore = create<FocusState>()(
             pomodoroBreak: 5,
             pomodoroPhase: "work",
             pomodoroCycles: 0,
+            timerDuration: 25,
 
             startSession: () => {
                 set({
@@ -104,12 +107,22 @@ export const useFocusStore = create<FocusState>()(
                     }
                 }
 
+                if (s.mode === "timer") {
+                    const target = s.timerDuration * 60;
+                    if (newElapsed >= target) {
+                        set({ elapsed: target });
+                        get().stopSession();
+                        return;
+                    }
+                }
+
                 set({ elapsed: newElapsed });
             },
 
             setMode: (mode) => set({ mode }),
             setPomodoroWork: (mins) => set({ pomodoroWork: mins }),
             setPomodoroBreak: (mins) => set({ pomodoroBreak: mins }),
+            setTimerDuration: (mins) => set({ timerDuration: mins }),
             clearSessions: () => set({ sessions: [] }),
         }),
         {
@@ -125,6 +138,7 @@ export const useFocusStore = create<FocusState>()(
                 pomodoroCycles: state.pomodoroCycles,
                 pomodoroWork: state.pomodoroWork,
                 pomodoroBreak: state.pomodoroBreak,
+                timerDuration: state.timerDuration,
             }),
         }
     )

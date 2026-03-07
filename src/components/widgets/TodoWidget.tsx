@@ -33,7 +33,11 @@ function SortableTodoItem({
     instanceId: string;
     isManualSort: boolean;
 }) {
-    const { toggleTodo, deleteTodo, updateTodo } = useWidgetStore();
+    const { toggleTodo, deleteTodo, updateTodo } = useWidgetStore(useShallow(s => ({
+        toggleTodo: s.toggleTodo,
+        deleteTodo: s.deleteTodo,
+        updateTodo: s.updateTodo
+    })));
 
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: todo.id,
@@ -189,8 +193,24 @@ function SortableTodoItem({
     );
 }
 
+import { useShallow } from "zustand/react/shallow";
+
 export default function TodoWidget({ instance }: { instance: WidgetInstance }) {
-    const { addTodo, reorderTodos, setTodoSortMode } = useWidgetStore();
+    const {
+        addTodo,
+        toggleTodo,
+        deleteTodo,
+        updateTodo,
+        reorderTodos,
+        setTodoSortMode
+    } = useWidgetStore(useShallow(s => ({
+        addTodo: s.addTodo,
+        toggleTodo: s.toggleTodo,
+        deleteTodo: s.deleteTodo,
+        updateTodo: s.updateTodo,
+        reorderTodos: s.reorderTodos,
+        setTodoSortMode: s.setTodoSortMode
+    })));
     const [input, setInput] = useState("");
     const [showCompleted, setShowCompleted] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);

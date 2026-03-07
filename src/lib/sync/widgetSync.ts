@@ -11,6 +11,7 @@ export interface WidgetRow {
     user_id?: string;        // populated by RLS on the server — client omits it
     device_id: string;
     type: string;
+    version: number;
     title: string | null;
     enabled: boolean;
     is_locked: boolean;
@@ -34,6 +35,7 @@ export function instanceToRow(inst: WidgetInstance, userId: string, deviceId = "
         user_id: userId,
         device_id: deviceId,
         type: inst.type,
+        version: 1,
         title: inst.title ?? null,
         enabled: inst.enabled,
         is_locked: inst.isLocked ?? false,
@@ -73,3 +75,43 @@ export function rowToInstance(row: WidgetRow): WidgetInstance {
         },
     };
 }
+
+// ─── Sync Loop Protection ─────────────────────────────────────────────────
+
+/**
+ * Prevents Supabase Realtime echo loops.
+ *
+ * When the client pushes an update it sets a lock for that widget ID.
+ * The realtime subscription checks this lock and ignores the echo event.
+ *
+ * Usage:
+ *   // Before pushing to Supabase:
+ *   syncLoopGuard.markLocal(widgetId);
+ *   await supabase.from('widgets').upsert(row);
+ *
+ *   // In the realtime callback:
+ *   if (syncLoopGuard.isLocalEcho(widgetId)) return; // skip
+ */
+export const syncLoopGuard = (() => {
+    /** widgetId → setTimeout handle */
+    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+    const ECHO_WINDOW_MS = 3000;
+
+    return {
+        /** Call before pushing a local change to Supabase. */
+        markLocal(widgetId: string): void {
+            if (pending.has(widgetId)) {
+                clearTimeout(pending.get(widgetId)!);
+            }
+            const timer = setTimeout(() => {
+                pending.delete(widgetId);
+            }, ECHO_WINDOW_MS);
+            pending.set(widgetId, timer);
+        },
+
+        /** Returns true if this remote event is likely an echo of our own push. */
+        isLocalEcho(widgetId: string): boolean {
+            return pending.has(widgetId);
+        },
+    };
+})();

@@ -8,6 +8,7 @@ import {
     CalendarDays,
     Settings,
     User,
+    LayoutGrid,
 } from "lucide-react";
 import type { TabId } from "@/types/widget";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -22,10 +23,12 @@ const navItems: { id: TabId; icon: typeof LayoutDashboard; label: string }[] = [
     { id: "projects", icon: FolderKanban, label: "Projects" },
     { id: "focus", icon: Focus, label: "Focus" },
     { id: "calendar", icon: CalendarDays, label: "Calendar" },
+    { id: "widgets", icon: LayoutGrid, label: "Widgets" },
 ];
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
-    const { isConnected, user } = useAuthStore();
+    const isConnected = useAuthStore((s) => s.isConnected);
+    const user = useAuthStore((s) => s.user);
     const picture = user?.user_metadata?.avatar_url as string | undefined;
     const name = user?.user_metadata?.full_name as string | undefined;
 
@@ -50,7 +53,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                         <button
                             key={item.id}
                             onClick={() => onTabChange(item.id)}
-                            className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group hover:bg-white/5 hover:shadow-[0_0_15px_rgba(124,92,255,0.12)]"
+                            className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 group hover:bg-white/5 hover:shadow-[0_0_15px_var(--color-accent-glow)]"
                             style={{
                                 background: isActive ? "var(--color-accent-glow)" : "transparent",
                                 color: isActive ? "var(--color-accent)" : "rgba(255,255,255,0.4)",
@@ -80,7 +83,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 {/* Settings Button */}
                 <button
                     onClick={() => onTabChange("settings")}
-                    className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-white/5 hover:shadow-[0_0_15px_rgba(124,92,255,0.12)]"
+                    className="relative w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-white/5 hover:shadow-[0_0_15px_var(--color-accent-glow)]"
                     style={{
                         background: activeTab === "settings" ? "var(--color-accent-glow)" : "transparent",
                         color: activeTab === "settings" ? "var(--color-accent)" : "rgba(255,255,255,0.4)",
@@ -93,7 +96,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 {/* Profile Block */}
                 <button
                     onClick={() => { /* Placeholder Modal Logic */ }}
-                    className="relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 hover:ring-2 hover:ring-purple-500/30 hover:scale-105"
+                    className="relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 hover:ring-2 hover:ring-emerald-500/30 hover:scale-105"
                     title={name || "Profile"}
                 >
                     {isConnected && picture ? (

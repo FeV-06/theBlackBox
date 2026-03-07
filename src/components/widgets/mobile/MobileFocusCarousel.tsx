@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
@@ -10,6 +10,9 @@ import { registryMap } from "@/lib/widgetRegistry";
 import type { WidgetInstance } from "@/types/widgetInstance";
 import type { TabId } from "@/types/widget";
 import ProjectsOverviewWidget from "../ProjectsOverviewWidget";
+import { widgetTemplateRegistry } from "@/widgets/registry";
+import { WidgetRuntime } from "../engine/WidgetRuntime";
+import { LayoutGrid } from "lucide-react";
 
 interface MobileFocusCarouselProps {
     widgets: WidgetInstance[];
@@ -126,12 +129,12 @@ export default function MobileFocusCarousel({
 
 
     // ── Pre-filter: no nulls inside <Swiper> ──
-    const validWidgets = widgets.filter((inst) => !!registryMap.get(inst.type));
+    const validWidgets = widgets.filter((inst) => !!registryMap.get(inst.type) || !!widgetTemplateRegistry.get(inst.type));
 
     // ── Active label ──
     const activeWidget = validWidgets[activeIndex];
     const activeLabel = activeWidget
-        ? (activeWidget.title || registryMap.get(activeWidget.type)?.defaultTitle || "")
+        ? (activeWidget.title || registryMap.get(activeWidget.type)?.defaultTitle || widgetTemplateRegistry.get(activeWidget.type)?.name || activeWidget.type)
         : "";
 
     return (
@@ -225,8 +228,12 @@ export default function MobileFocusCarousel({
                                 </p>
                                 <div className="max-h-60 overflow-y-auto overscroll-contain">
                                     {validWidgets.map((inst, idx) => {
-                                        const def = registryMap.get(inst.type)!;
-                                        const Icon = def.icon;
+                                        const def = registryMap.get(inst.type);
+                                        const manifest = !def ? widgetTemplateRegistry.get(inst.type) : null;
+
+                                        if (!def && !manifest) return null;
+
+                                        const Icon = def?.icon || LayoutGrid;
                                         const isActive = idx === activeIndex;
                                         return (
                                             <button
@@ -243,7 +250,7 @@ export default function MobileFocusCarousel({
                                                     className="text-[13px] truncate"
                                                     style={{ color: isActive ? "var(--color-text-primary)" : "var(--color-text-secondary)", fontWeight: isActive ? 500 : 400 }}
                                                 >
-                                                    {inst.title || def.defaultTitle}
+                                                    {inst.title || def?.defaultTitle || manifest?.name || inst.type}
                                                 </span>
                                             </button>
                                         );
@@ -295,9 +302,6 @@ export default function MobileFocusCarousel({
                     style={{ height: "100%" }}
                 >
                     {validWidgets.map((inst) => {
-                        const def = registryMap.get(inst.type)!;
-                        const Component = def.component;
-
                         return (
                             <SwiperSlide key={inst.instanceId} style={{ height: "100%" }}>
                                 {/* data-scroll-lock: gesture system checks scrollTop here
@@ -312,8 +316,17 @@ export default function MobileFocusCarousel({
                                 >
                                     {inst.type === "projects_overview" ? (
                                         <ProjectsOverviewWidget instance={inst} onNavigate={onNavigate} />
+                                    ) : registryMap.get(inst.type) ? (
+                                        React.createElement(registryMap.get(inst.type)!.component, { instance: inst })
                                     ) : (
-                                        <Component instance={inst} />
+                                        <div className="p-4 h-full">
+                                            <WidgetRuntime
+                                                widgetId={inst.instanceId}
+                                                widgetType={inst.type}
+                                                version={inst.version}
+                                                config={inst.config}
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             </SwiperSlide>

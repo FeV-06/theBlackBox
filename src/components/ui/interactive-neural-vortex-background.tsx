@@ -203,6 +203,7 @@ const InteractiveNeuralVortex: React.FC<InteractiveNeuralVortexProps> = ({ class
             glCtx.deleteProgram(program);
             glCtx.deleteShader(vertexShader);
             glCtx.deleteShader(fragmentShader);
+            if (vertexBuffer) glCtx.deleteBuffer(vertexBuffer);
         };
     }, []);
 

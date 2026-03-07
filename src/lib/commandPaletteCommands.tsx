@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { WIDGET_REGISTRY } from "./widgetRegistry";
 
-export type CommandSection = "Recent" | "Navigation" | "Widgets" | "Dashboard";
+export type CommandSection = "Recent" | "Navigation" | "Widgets" | "Dashboard" | "System";
 
 export type Command = {
     id: string;
@@ -87,6 +87,14 @@ export function getCommands(ctx: Context): Command[] {
             icon: <Settings size={16} />,
             run: () => setActiveTab("settings"),
             score: (c) => c.currentTab !== "settings" ? 10 : -10
+        },
+        {
+            id: "nav-widgets",
+            title: "Open Widgets",
+            section: "Navigation",
+            icon: <LayoutGrid size={16} />,
+            run: () => setActiveTab("widgets"),
+            score: (c) => c.currentTab !== "widgets" ? 10 : -10
         }
     );
 
@@ -141,6 +149,15 @@ export function getCommands(ctx: Context): Command[] {
             icon: <Maximize2 size={16} />,
             run: () => widgetStore.expandAll(),
             score: (c) => c.currentTab === "dashboard" ? 15 : 0
+        },
+        {
+            id: "action-toggle-visuals",
+            title: "Toggle Premium Visuals",
+            subtitle: settingsStore.enablePremiumVisuals ? "Switch to Performance" : "Switch to High Fidelity",
+            section: "System" as any,
+            icon: settingsStore.enablePremiumVisuals ? <Maximize2 size={16} /> : <Minimize2 size={16} />,
+            run: () => settingsStore.setEnablePremiumVisuals(!settingsStore.enablePremiumVisuals),
+            score: () => 30 // High priority
         }
     );
 

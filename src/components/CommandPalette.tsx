@@ -12,6 +12,7 @@ import { COMMAND_PALETTE_THEMES } from "@/lib/commandPaletteThemes";
 import { cn } from "@/lib/utils";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
 
 /* ─── Global State for Palette Visibility ─── */
 export type CommandHistory = {
@@ -54,11 +55,30 @@ export const useCommandPalette = create<CommandPaletteState>()(
 
 /* ─── Component ─── */
 export default function CommandPalette() {
-    const { isOpen, close, open, recent, addRecent } = useCommandPalette();
+    const isOpen = useCommandPalette((s) => s.isOpen);
+    const close = useCommandPalette((s) => s.close);
+    const open = useCommandPalette((s) => s.open);
+    const recent = useCommandPalette((s) => s.recent);
+    const addRecent = useCommandPalette((s) => s.addRecent);
+
     const router = useRouter();
-    const widgetStore = useWidgetStore();
-    const settingsStore = useSettingsStore();
-    const { activeTab, setActiveTab } = useNavigationStore();
+    const widgetStore = useWidgetStore(useShallow(s => ({
+        addInstance: s.addInstance,
+        collapseAll: s.collapseAll,
+        expandAll: s.expandAll,
+        resetToDefaults: s.resetToDefaults,
+        autoArrangeInstances: s.autoArrangeInstances
+    })));
+    const settingsStore = useSettingsStore(useShallow(s => ({
+        dashboardEditMode: s.dashboardEditMode,
+        enablePremiumVisuals: s.enablePremiumVisuals,
+        toggleDashboardEditMode: s.toggleDashboardEditMode,
+        setEnablePremiumVisuals: s.setEnablePremiumVisuals,
+        commandPaletteTheme: s.commandPaletteTheme
+    })));
+
+    const activeTab = useNavigationStore((s) => s.activeTab);
+    const setActiveTab = useNavigationStore((s) => s.setActiveTab);
 
     const theme = settingsStore.commandPaletteTheme;
     const themeConfig = COMMAND_PALETTE_THEMES[theme] || COMMAND_PALETTE_THEMES.default;
@@ -97,7 +117,7 @@ export default function CommandPalette() {
         return groups;
     }, [filteredCommands]);
 
-    const orderedSections = ["Recent", "Dashboard", "Calendar", "Projects", "Focus", "Settings", "Navigation", "Widgets"];
+    const orderedSections = ["Recent", "System", "Dashboard", "Calendar", "Projects", "Focus", "Settings", "Navigation", "Widgets"];
 
     // Flatten for keyboard navigation (respecting collapsed state and section order)
     const flatList = useMemo(() => {

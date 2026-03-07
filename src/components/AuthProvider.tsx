@@ -6,6 +6,7 @@ import { useWidgetSync } from "@/hooks/useWidgetSync";
 import { useFocusSync } from "@/hooks/useFocusSync";
 import { useProjectSync } from "@/hooks/useProjectSync";
 import { useSettingsSync } from "@/hooks/useSettingsSync";
+import { useTemplateSync } from "@/hooks/useTemplateSync";
 
 /**
  * AuthProvider
@@ -26,6 +27,7 @@ export default function AuthProvider() {
     useFocusSync();
     useProjectSync();
     useSettingsSync();
+    useTemplateSync();
 
     return null;
 }

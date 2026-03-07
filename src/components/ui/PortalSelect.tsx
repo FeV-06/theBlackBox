@@ -74,31 +74,33 @@ export function PortalSelect({
             <button
                 ref={triggerRef}
                 onClick={handleOpen}
-                className={`flex items-center justify-between gap-2 px-2 py-1 rounded-lg border text-[11px] outline-none transition-colors ${className}`}
+                className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-sm outline-none transition-all duration-200 ${className}`}
                 style={{
                     background: "rgba(255,255,255,0.03)",
-                    borderColor: isOpen ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
-                    color: "var(--color-text-secondary)",
+                    borderColor: isOpen ? "var(--color-accent)" : "var(--color-border)",
+                    color: value ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                    boxShadow: isOpen ? "0 0 12px var(--color-accent-glow)" : "none",
+                    width: "100%",
                     ...style,
                 }}
             >
                 <span className="truncate">{selectedLabel}</span>
-                <ChevronDown size={11} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                <ChevronDown size={14} className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isOpen &&
                 createPortal(
                     <div
                         id="portal-select-dropdown"
-                        className="fixed z-[999999] flex flex-col rounded-xl overflow-hidden shadow-2xl border"
+                        className="fixed z-[999999] flex flex-col rounded-xl overflow-hidden shadow-2xl border animate-fade-in"
                         style={{
                             top: position.top,
                             left: position.left,
                             minWidth: position.width,
-                            background: "#121216", // Hardcoded dark bg for safety
-                            borderColor: "rgba(255,255,255,0.08)",
+                            background: "var(--color-bg-elevated)",
+                            borderColor: "var(--color-border-hover)",
                             boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
-                            backdropFilter: "blur(12px)",
+                            backdropFilter: "blur(18px)",
                         }}
                     >
                         <div className="flex flex-col max-h-[240px] overflow-y-auto p-1 custom-scrollbar">
@@ -109,14 +111,16 @@ export function PortalSelect({
                                         onChange(opt.value);
                                         setIsOpen(false);
                                     }}
-                                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-left transition-colors hover:bg-white/5"
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-all duration-150 hover:bg-white/5 group"
                                     style={{
                                         color: opt.value === value ? "var(--color-accent)" : "var(--color-text-secondary)",
-                                        background: opt.value === value ? "rgba(124,92,255,0.1)" : "transparent",
+                                        background: opt.value === value ? "var(--color-accent-glow)" : "transparent",
                                     }}
                                 >
-                                    <span className="flex-1 truncate">{opt.label}</span>
-                                    {opt.value === value && <Check size={10} />}
+                                    <span className="flex-1 truncate group-hover:text-[var(--color-text-primary)] transition-colors">
+                                        {opt.label}
+                                    </span>
+                                    {opt.value === value && <Check size={14} className="text-[var(--color-accent)]" />}
                                 </button>
                             ))}
                         </div>

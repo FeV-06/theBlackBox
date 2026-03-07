@@ -10,6 +10,14 @@ import {
     updateCalendarEventFromTask,
     deleteCalendarEvent
 } from "@/lib/todoCalendarSync";
+import type { WidgetManifest } from "@/widgets/types";
+import type { HealthStatusType } from "@/components/widgets/engine/WidgetHealthContext";
+
+export type HealthEvent = {
+    status: HealthStatusType;
+    timestamp: number;
+    message?: string;
+};
 
 
 /* ─── Helpers ─── */
@@ -96,11 +104,20 @@ interface WidgetState {
     layout: string[];
     lockedGroups: Record<string, boolean>;
 
+    // Registry (runtime only, NOT persisted)
+    registry: Map<string, WidgetManifest>;
+    addManifestToRegistry: (manifest: WidgetManifest) => void;
+
+    // Health Tracking (persisted)
+    healthHistory: Record<string, HealthEvent[]>;
+    reportHealth: (widgetId: string, status: HealthStatusType, message?: string) => void;
+
     // History (runtime only, NOT persisted)
     historyPast: WidgetStoreSnapshot[];
     historyFuture: WidgetStoreSnapshot[];
 
     addInstance: (type: WidgetType, config?: Record<string, unknown>) => string;
+    registerExternalWidget: (inst: WidgetInstance) => void;
     removeInstance: (instanceId: string) => void;
     toggleInstance: (instanceId: string) => void;
     renameInstance: (instanceId: string, title: string) => void;
@@ -137,9 +154,23 @@ interface WidgetState {
     reorderTodos: (instanceId: string, newOrder: TodoItem[]) => void;
     setTodoSortMode: (instanceId: string, sortMode: "manual" | "priority" | "dueDate") => void;
 
+    // Multiple Canvases
+    canvases: { id: string; name: string }[];
+    layouts: Record<string, { order: string[]; positions: Record<string, { x: number; y: number; w: number; h: number }> }>;
+    activeCanvasId: string;
+
+    addCanvas: (name: string) => string;
+    renameCanvas: (id: string, name: string) => void;
+    deleteCanvas: (id: string) => void;
+    switchCanvas: (id: string, direction?: number) => void;
+    setSyncedCanvases: (canvases: { id: string; name: string }[], layouts: Record<string, { order: string[]; positions: Record<string, { x: number; y: number; w: number; h: number }> }>, activeCanvasId: string) => void;
+
     // Undo/Redo
     undo: () => void;
     redo: () => void;
+
+    // Animation state
+    canvasDirection: number;
 }
 
 /* ─── Migrate v0 → v1 ─── */
@@ -181,7 +212,11 @@ function migrateV0toV1(old: V0State): Pick<WidgetState, "instances" | "layout"> 
 /* ─── Snapshot helpers ─── */
 
 function takeSnapshot(s: WidgetState): WidgetStoreSnapshot {
-    return structuredClone({ instances: s.instances, layout: s.layout, lockedGroups: s.lockedGroups });
+    return {
+        instances: s.instances,
+        layout: s.layout,
+        lockedGroups: s.lockedGroups
+    };
 }
 
 function pushSnapshot(s: WidgetState): Pick<WidgetState, "historyPast" | "historyFuture"> {
@@ -239,6 +274,155 @@ export const useWidgetStore = create<WidgetState>()(
                 historyPast: [],
                 historyFuture: [],
 
+                // Registry
+                registry: new Map<string, WidgetManifest>(),
+                addManifestToRegistry: (manifest) =>
+                    set((s) => {
+                        const newRegistry = new Map(s.registry);
+                        newRegistry.set(manifest.id, manifest);
+                        return { registry: newRegistry };
+                    }),
+
+                // Health Tracking
+                healthHistory: {},
+                reportHealth: (widgetId, status, message) =>
+                    set((s) => {
+                        const history = s.healthHistory[widgetId] || [];
+                        const lastEvent = history[history.length - 1];
+
+                        // Deduplicate identical sequential states unless message changed
+                        if (lastEvent?.status === status && lastEvent?.message === message) return s;
+
+                        const newEvent: HealthEvent = {
+                            status,
+                            timestamp: Date.now(),
+                            message
+                        };
+
+                        const newHistory = [...history, newEvent].slice(-10); // Keep last 10
+
+                        return {
+                            healthHistory: {
+                                ...s.healthHistory,
+                                [widgetId]: newHistory
+                            }
+                        };
+                    }),
+
+                // Multiple Canvases
+                canvases: [{ id: "main", name: "Main Canvas" }],
+                layouts: { "main": { order: [], positions: {} } },
+                activeCanvasId: "main",
+                canvasDirection: 0,
+
+                addCanvas: (name) => {
+                    const id = `canvas_${generateId()}`;
+                    set((s) => ({
+                        canvases: [...s.canvases, { id, name }],
+                        layouts: { ...s.layouts, [id]: { order: [], positions: {} } }
+                    }));
+                    return id;
+                },
+
+                renameCanvas: (id, name) => set((s) => ({
+                    canvases: s.canvases.map(c => c.id === id ? { ...c, name } : c)
+                })),
+
+                deleteCanvas: (id) => set((s) => {
+                    if (s.canvases.length <= 1) return s;
+
+                    const newCanvases = s.canvases.filter(c => c.id !== id);
+                    const newLayouts = { ...s.layouts };
+                    delete newLayouts[id];
+
+                    if (s.activeCanvasId === id) {
+                        const fallbackId = newCanvases[0].id;
+                        const rawTarget = newLayouts[fallbackId];
+                        const targetLayout = {
+                            order: Array.isArray(rawTarget) ? rawTarget : (rawTarget?.order || []),
+                            positions: (rawTarget && !Array.isArray(rawTarget)) ? (rawTarget.positions || {}) : {}
+                        };
+
+                        const updatedInstances = { ...s.instances };
+                        Object.keys(targetLayout.positions).forEach(instId => {
+                            if (updatedInstances[instId]) {
+                                updatedInstances[instId] = {
+                                    ...updatedInstances[instId],
+                                    layout: targetLayout.positions[instId]
+                                };
+                            }
+                        });
+
+                        return {
+                            canvases: newCanvases,
+                            layouts: newLayouts,
+                            activeCanvasId: fallbackId,
+                            layout: [...targetLayout.order],
+                            instances: updatedInstances
+                        };
+                    }
+
+                    return { canvases: newCanvases, layouts: newLayouts };
+                }),
+
+                switchCanvas: (id, direction = 0) => {
+                    const s = get();
+                    if (s.activeCanvasId === id || !s.layouts[id]) return;
+
+                    // 1. Capture current spatial positions
+                    const currentPositions: Record<string, any> = {};
+                    s.layout.forEach(instId => {
+                        const inst = s.instances[instId];
+                        if (inst?.layout) {
+                            currentPositions[instId] = { ...inst.layout };
+                        }
+                    });
+
+                    // 2. Prepare new layouts map
+                    const updatedLayouts = {
+                        ...s.layouts,
+                        [s.activeCanvasId]: {
+                            order: [...s.layout],
+                            positions: currentPositions
+                        }
+                    };
+
+                    // 3. Prepare target canvas data
+                    const rawTarget = s.layouts[id];
+                    const targetLayout = {
+                        order: Array.isArray(rawTarget) ? rawTarget : (rawTarget?.order || []),
+                        positions: (rawTarget && !Array.isArray(rawTarget)) ? (rawTarget.positions || {}) : {}
+                    };
+                    const updatedInstances = { ...s.instances };
+
+                    // 4. Map target coordinates back to shared instances
+                    Object.entries(targetLayout.positions).forEach(([instId, pos]) => {
+                        if (updatedInstances[instId]) {
+                            updatedInstances[instId] = {
+                                ...updatedInstances[instId],
+                                layout: pos as any
+                            };
+                        }
+                    });
+
+                    set({
+                        ...pushSnapshot(s),
+                        layouts: updatedLayouts,
+                        activeCanvasId: id,
+                        layout: [...targetLayout.order],
+                        instances: updatedInstances,
+                        canvasDirection: direction
+                    });
+                },
+
+                setSyncedCanvases: (canvases, layouts, activeCanvasId) => set((s) => {
+                    return {
+                        canvases: canvases.length > 0 ? canvases : s.canvases,
+                        layouts: layouts,
+                        activeCanvasId: activeCanvasId
+                    };
+                }),
+
                 addInstance: (type, config) => {
                     const id = generateId();
                     const index = get().layout.length;
@@ -252,6 +436,30 @@ export const useWidgetStore = create<WidgetState>()(
                         layout: [...s.layout, id],
                     }));
                     return id;
+                },
+
+                registerExternalWidget: (inst) => {
+                    const { instanceId: id } = inst;
+                    set((s) => {
+                        const newOrder = [...s.layout, id];
+                        const activeId = s.activeCanvasId;
+                        const activeLayout = s.layouts[activeId] ?? { order: [], positions: {} };
+                        return {
+                            ...pushSnapshot(s),
+                            instances: { ...s.instances, [id]: inst },
+                            layout: newOrder,
+                            layouts: {
+                                ...s.layouts,
+                                [activeId]: {
+                                    order: [...activeLayout.order, id],
+                                    positions: {
+                                        ...activeLayout.positions,
+                                        [id]: { ...inst.layout },
+                                    },
+                                },
+                            },
+                        };
+                    });
                 },
 
                 removeInstance: (instanceId) =>
@@ -290,7 +498,8 @@ export const useWidgetStore = create<WidgetState>()(
                     }),
 
                 duplicateInstance: (instanceId) => {
-                    const inst = get().instances[instanceId];
+                    const s = get();
+                    const inst = s.instances[instanceId];
                     if (!inst) return "";
                     const newId = generateId();
                     const clone: WidgetInstance = {
@@ -299,16 +508,42 @@ export const useWidgetStore = create<WidgetState>()(
                         title: inst.title ? `${inst.title} (copy)` : undefined,
                         createdAt: Date.now(),
                         updatedAt: Date.now(),
-                        config: { ...inst.config },
+                        config: structuredClone(inst.config),
+                        layout: {
+                            ...inst.layout,
+                            x: inst.layout.x + 20,
+                            y: inst.layout.y + 20,
+                        }
                     };
                     set((s) => {
                         const idx = s.layout.indexOf(instanceId);
-                        const newLayout = [...s.layout];
-                        newLayout.splice(idx + 1, 0, newId);
+                        const newLayoutOrder = [...s.layout];
+                        newLayoutOrder.splice(idx + 1, 0, newId);
+
+                        const activeId = s.activeCanvasId;
+                        const activeLayout = s.layouts[activeId] ?? { order: [], positions: {} };
+                        const canvasIdx = activeLayout.order.indexOf(instanceId);
+                        const newCanvasOrder = [...activeLayout.order];
+                        if (canvasIdx !== -1) {
+                            newCanvasOrder.splice(canvasIdx + 1, 0, newId);
+                        } else {
+                            newCanvasOrder.push(newId);
+                        }
+
                         return {
                             ...pushSnapshot(s),
                             instances: { ...s.instances, [newId]: clone },
-                            layout: newLayout,
+                            layout: newLayoutOrder,
+                            layouts: {
+                                ...s.layouts,
+                                [activeId]: {
+                                    order: newCanvasOrder,
+                                    positions: {
+                                        ...activeLayout.positions,
+                                        [newId]: { ...clone.layout }
+                                    }
+                                }
+                            }
                         };
                     });
                     return newId;
@@ -1205,12 +1440,16 @@ export const useWidgetStore = create<WidgetState>()(
         },
         {
             name: typeof window !== "undefined" && window.location.pathname.startsWith("/demo") ? "tbb-demo-widgets" : "tbb-widgets",
-            version: 3,
+            version: 4,
             // Exclude history from persistence — it's runtime-only
             partialize: (state) => ({
                 instances: state.instances,
                 layout: state.layout,
                 lockedGroups: state.lockedGroups,
+                canvases: state.canvases,
+                layouts: state.layouts,
+                activeCanvasId: state.activeCanvasId,
+                healthHistory: state.healthHistory,
             }),
             migrate: (persisted, version) => {
                 let state = persisted as WidgetState;
@@ -1270,7 +1509,52 @@ export const useWidgetStore = create<WidgetState>()(
                     hasCompletedSetup = cleanLayout.length > 0;
                 }
 
-                return { ...state, instances: cleanInstances, layout: cleanLayout, hasCompletedSetup };
+                // Initial Canvas setup for legacy instances
+                let canvases = state.canvases;
+                let layouts = state.layouts as any;
+                let activeCanvasId = state.activeCanvasId;
+
+                const hasNewLayoutFormat = layouts && typeof layouts === 'object' && Object.values(layouts).some(l => l && typeof l === 'object' && 'positions' in l);
+
+                if (!canvases || !Array.isArray(canvases) || canvases.length === 0 || !hasNewLayoutFormat) {
+                    // Initialize or Upgrade layouts
+                    const upgradedLayouts: Record<string, any> = {};
+                    const currentCanvases = (canvases && Array.isArray(canvases) && canvases.length > 0)
+                        ? canvases
+                        : [{ id: "main", name: "Main Canvas" }];
+
+                    currentCanvases.forEach(c => {
+                        let order: string[] = [];
+                        if (layouts && layouts[c.id]) {
+                            const val = layouts[c.id];
+                            order = Array.isArray(val) ? val : (val.order || []);
+                        } else if (c.id === "main") {
+                            order = cleanLayout;
+                        }
+
+                        const positions: Record<string, any> = {};
+                        order.forEach(instId => {
+                            if (cleanInstances[instId]?.layout) {
+                                positions[instId] = { ...cleanInstances[instId].layout };
+                            }
+                        });
+                        upgradedLayouts[c.id] = { order, positions };
+                    });
+
+                    canvases = currentCanvases;
+                    layouts = upgradedLayouts;
+                    activeCanvasId = activeCanvasId || "main";
+                }
+
+                return {
+                    ...state,
+                    instances: cleanInstances,
+                    layout: cleanLayout,
+                    hasCompletedSetup,
+                    canvases,
+                    layouts,
+                    activeCanvasId
+                };
             },
         }
     )

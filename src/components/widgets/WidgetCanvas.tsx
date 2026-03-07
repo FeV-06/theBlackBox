@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect, useCallback, Fragment } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback, Fragment, lazy, Suspense } from "react";
 import { Rnd } from "react-rnd";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { registryMap } from "@/lib/widgetRegistry";
+import { getTemplateManifest, widgetTemplateRegistry } from "@/widgets/registry";
+import { templateLoader } from "@/widgets/templateLoader";
 import { snap } from "@/lib/snap";
 import WidgetCard from "./WidgetCard";
 import WidgetStackPreview from "./WidgetStackPreview";
@@ -18,6 +20,15 @@ import StackExpandModal from "./StackExpandModal";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import MobileWidgetDeck from "./mobile/MobileWidgetDeck";
+import { WidgetRuntime, HealthStatusType } from "./engine/WidgetRuntime";
+
+import type { WidgetComponentProps } from "@/widgets/types";
+
+// V1.5: Ensure all widget templates are registered at startup
+templateLoader();
+
+
+
 
 /* ── Constants ── */
 const GROUP_PROXIMITY_PX = 40;
@@ -220,6 +231,8 @@ function computeResizeAlignment(
     };
 }
 
+// Variants moved inside component for dynamic settings support
+
 function UnknownWidget({ instance }: { instance: WidgetInstance }) {
     return (
         <div className="flex flex-col items-center justify-center h-full p-4 gap-2 text-center">
@@ -231,9 +244,30 @@ function UnknownWidget({ instance }: { instance: WidgetInstance }) {
     );
 }
 
+import { useShallow } from "zustand/react/shallow";
+
 export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanvas = false }: WidgetCanvasProps) {
-    const { instances, layout, updateInstanceLayout, lockedGroups, toggleGroupLock, unlinkFromStack, relinkToStacks, setInstanceCollapse } = useWidgetStore();
+    const {
+        instances, layout, activeCanvasId, canvasDirection,
+        updateInstanceLayout, lockedGroups, toggleGroupLock,
+        unlinkFromStack, relinkToStacks, setInstanceCollapse,
+        reportHealth, healthHistory
+    } = useWidgetStore(useShallow(s => ({
+        instances: s.instances,
+        layout: s.layout,
+        activeCanvasId: s.activeCanvasId,
+        canvasDirection: s.canvasDirection,
+        updateInstanceLayout: s.updateInstanceLayout,
+        lockedGroups: s.lockedGroups,
+        toggleGroupLock: s.toggleGroupLock,
+        unlinkFromStack: s.unlinkFromStack,
+        relinkToStacks: s.relinkToStacks,
+        setInstanceCollapse: s.setInstanceCollapse,
+        reportHealth: s.reportHealth,
+        healthHistory: s.healthHistory
+    })));
     const dashboardEditMode = useSettingsStore((s) => s.dashboardEditMode);
+    const enablePremiumVisuals = useSettingsStore((s) => s.enablePremiumVisuals);
     // ── Responsive: detect mobile early (must be at hook level, not inside condition) ──
     const isMobile = useMediaQuery("(max-width: 768px)");
     /* ── Dynamic Canvas State (V4) ── */
@@ -273,6 +307,37 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
     // Track Viewport
     const [viewport, setViewport] = useState({ w: 0, h: 0 });
     const isMounted = useIsMounted();
+
+    /* ── Dynamic Motion Variants (V5.2) ── */
+    const canvasVariants = useMemo(() => ({
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: {
+                staggerChildren: enablePremiumVisuals ? 0.08 : 0,
+                delayChildren: enablePremiumVisuals ? 0.1 : 0,
+            }
+        }
+    }), [enablePremiumVisuals]);
+
+    const widgetItemVariants = useMemo(() => ({
+        hidden: { opacity: 0, y: enablePremiumVisuals ? 15 : 0, scale: enablePremiumVisuals ? 0.96 : 1 },
+        show: {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            transition: enablePremiumVisuals ? {
+                type: "spring" as any,
+                stiffness: 260,
+                damping: 25
+            } : { duration: 0.2, ease: "easeOut" as any }
+        }
+    }), [enablePremiumVisuals]);
+
+    // V1.6: Stable health handler (Syncs with global store)
+    const handleWidgetHealth = useCallback((id: string, status: HealthStatusType, _lastUpdated: number, message?: string) => {
+        reportHealth(id, status, message);
+    }, [reportHealth]);
 
     /* ── Safe Surface Setter (Scroll Preservation) ── */
     const safeSetSurfaceSize = useCallback((next: { w: number; h: number }) => {
@@ -582,7 +647,6 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
         };
     }, []);
 
-    // V4.7: Helper to get pointer in surface coordinates (scrolled space)
     const getSurfacePointer = useCallback(() => {
         const el = scrollRef.current;
         if (!el) return { x: 0, y: 0 };
@@ -670,551 +734,599 @@ export default function WidgetCanvas({ onNavigate, fullHeight = false, fixedCanv
             ref={scrollRef}
             className={`relative w-full overflow-x-hidden rounded-2xl ${fullHeight ? 'h-screen' : 'h-[calc(100vh-140px)]'} ${fixedCanvas ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
         >
-            <div
-                ref={surfaceRef}
-                className="relative transition-[height] duration-75 ease-out"
-                style={{
-                    width: "100%",
-                    height: fixedCanvas ? "100%" : surfaceSize.h,
-                    // minWidth/minHeight removed for V4.1 to rely on explicit pixel size
-                    backgroundImage: dashboardEditMode
-                        ? "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)"
-                        : "linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)",
-                    backgroundSize: "20px 20px",
-                }}
-            >
-                {/* ── Alignment Guide Lines ── */}
-                {guides.vertical.map((x, i) => (
-                    <div
-                        key={`vg-${i}`}
-                        className="absolute pointer-events-none"
-                        style={{
-                            left: x - GUIDE_LINE_THICKNESS / 2,
-                            top: 0,
-                            height: surfaceSize.h,
-                            width: GUIDE_LINE_THICKNESS,
-                            background: GUIDE_COLOR,
-                            boxShadow: GUIDE_GLOW,
-                            zIndex: 9999,
-                            opacity: guidesVisible ? 1 : 0,
-                            transition: "opacity 150ms ease",
-                        }}
-                    />
-                ))}
-                {guides.horizontal.map((y, i) => (
-                    <div
-                        key={`hg-${i}`}
-                        className="absolute pointer-events-none"
-                        style={{
-                            top: y - GUIDE_LINE_THICKNESS / 2,
-                            left: 0,
-                            width: "100%",
-                            height: GUIDE_LINE_THICKNESS,
-                            background: GUIDE_COLOR,
-                            boxShadow: GUIDE_GLOW,
-                            zIndex: 9999,
-                            opacity: guidesVisible ? 1 : 0,
-                            transition: "opacity 150ms ease",
-                        }}
-                    />
-                ))}
+            <AnimatePresence mode="popLayout" initial={false} custom={canvasDirection}>
+                <motion.div
+                    key={activeCanvasId}
+                    ref={surfaceRef}
+                    custom={canvasDirection}
+                    variants={{
+                        initial: (dir: number) => ({
+                            opacity: 0,
+                            x: dir === 0 ? 0 : dir * 100,
+                            filter: "blur(10px)",
+                        }),
+                        animate: {
+                            opacity: 1,
+                            x: 0,
+                            filter: "blur(0px)",
+                            transition: {
+                                duration: 0.45,
+                                ease: [0.19, 1, 0.22, 1],
+                                staggerChildren: 0.08,
+                                delayChildren: 0.1,
+                            }
+                        },
+                        exit: (dir: number) => ({
+                            opacity: 0,
+                            x: dir === 0 ? 0 : dir * -100,
+                            filter: "blur(10px)",
+                            transition: {
+                                duration: 0.35,
+                                ease: [0.19, 1, 0.22, 1],
+                            }
+                        })
+                    }}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="relative transition-[height] duration-75 ease-out"
+                    style={{
+                        width: "100%",
+                        height: fixedCanvas ? "100%" : surfaceSize.h,
+                        // minWidth/minHeight removed for V4.1 to rely on explicit pixel size
+                        backgroundImage: dashboardEditMode
+                            ? "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)"
+                            : "linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)",
+                        backgroundSize: "20px 20px",
+                    }}
+                >
+                    {/* ── Alignment Guide Lines ── */}
+                    {guides.vertical.map((x, i) => (
+                        <div
+                            key={`vg-${i}`}
+                            className="absolute pointer-events-none"
+                            style={{
+                                left: x - GUIDE_LINE_THICKNESS / 2,
+                                top: 0,
+                                height: surfaceSize.h,
+                                width: GUIDE_LINE_THICKNESS,
+                                background: GUIDE_COLOR,
+                                boxShadow: GUIDE_GLOW,
+                                zIndex: 9999,
+                                opacity: guidesVisible ? 1 : 0,
+                                transition: "opacity 150ms ease",
+                            }}
+                        />
+                    ))}
+                    {guides.horizontal.map((y, i) => (
+                        <div
+                            key={`hg-${i}`}
+                            className="absolute pointer-events-none"
+                            style={{
+                                top: y - GUIDE_LINE_THICKNESS / 2,
+                                left: 0,
+                                width: "100%",
+                                height: GUIDE_LINE_THICKNESS,
+                                background: GUIDE_COLOR,
+                                boxShadow: GUIDE_GLOW,
+                                zIndex: 9999,
+                                opacity: guidesVisible ? 1 : 0,
+                                transition: "opacity 150ms ease",
+                            }}
+                        />
+                    ))}
 
-                {groups.map((group) => {
-                    const { groupId, instanceIds } = group;
+                    {groups.map((group) => {
+                        const { groupId, instanceIds } = group;
 
-                    // Deterministic default active: first in store.layout order
-                    const defaultActive = instanceIds.reduce((prev: string, curr: string) => {
-                        const idxPrev = layout.indexOf(prev);
-                        const idxCurr = layout.indexOf(curr);
-                        return idxCurr < idxPrev ? curr : prev;
-                    });
-
-                    const activeId = activeInGroup[groupId] || defaultActive;
-                    const activeInstance = instances[activeId];
-                    if (!activeInstance || !activeInstance.layout) return null;
-
-                    // Compute Stable Anchor: choose the widget with smallest y, if tie, smallest x
-                    const anchorInstance = instanceIds
-                        .map((id: string) => instances[id])
-                        .filter((inst): inst is WidgetInstance => !!inst && !!inst.layout)
-                        .reduce((best: WidgetInstance, curr: WidgetInstance) => {
-                            if (!best) return curr;
-                            if (curr.layout!.y < best.layout!.y) return curr;
-                            if (curr.layout!.y === best.layout!.y && curr.layout!.x < best.layout!.x) return curr;
-                            return best;
+                        // Deterministic default active: first in store.layout order
+                        const defaultActive = instanceIds.reduce((prev: string, curr: string) => {
+                            const idxPrev = layout.indexOf(prev);
+                            const idxCurr = layout.indexOf(curr);
+                            return idxCurr < idxPrev ? curr : prev;
                         });
 
-                    const anchorX = anchorInstance.layout!.x;
-                    const anchorY = anchorInstance.layout!.y;
+                        const activeId = activeInGroup[groupId] || defaultActive;
+                        const activeInstance = instances[activeId];
+                        if (!activeInstance || !activeInstance.layout) return null;
 
-                    const isStacked = instanceIds.length > 1;
+                        // Compute Stable Anchor: choose the widget with smallest y, if tie, smallest x
+                        const anchorInstance = instanceIds
+                            .map((id: string) => instances[id])
+                            .filter((inst): inst is WidgetInstance => !!inst && !!inst.layout)
+                            .reduce((best: WidgetInstance, curr: WidgetInstance) => {
+                                if (!best) return curr;
+                                if (curr.layout!.y < best.layout!.y) return curr;
+                                if (curr.layout!.y === best.layout!.y && curr.layout!.x < best.layout!.x) return curr;
+                                return best;
+                            });
 
-                    // For stacked view, sort background cards by height descending
-                    const backgroundIds = instanceIds
-                        .filter(id => id !== activeId)
-                        .sort((a, b) => (instances[b]?.layout?.h || 0) - (instances[a]?.layout?.h || 0));
+                        const anchorX = anchorInstance.layout!.x;
+                        const anchorY = anchorInstance.layout!.y;
 
-                    const definition = registryMap.get(activeInstance.type);
-                    const Component = definition?.component || ((props: any) => <div className="p-4 text-xs italic opacity-40">Unknown {props.instance.type}</div>);
+                        const isStacked = instanceIds.length > 1;
 
-                    const dir = cycleDirection[groupId] || 1;
+                        // For stacked view, sort background cards by height descending
+                        const backgroundIds = instanceIds
+                            .filter(id => id !== activeId)
+                            .sort((a, b) => (instances[b]?.layout?.h || 0) - (instances[a]?.layout?.h || 0));
 
-                    const groupLocked = !!lockedGroups[groupId];
-                    const instanceLocked = !!activeInstance.isLocked;
-                    const lockedFinal = groupLocked || instanceLocked;
+                        const definition = registryMap.get(activeInstance.type);
+                        const Component = definition?.component || ((props: any) => <div className="p-4 text-xs italic opacity-40">Unknown {props.instance.type}</div>);
 
-                    // Rects for OTHER widgets (exclude all members of this group for alignment)
-                    const groupMemberIds = new Set(instanceIds);
-                    const otherRects = widgetRects.filter(r => !groupMemberIds.has(r.id));
+                        const dir = cycleDirection[groupId] || 1;
 
-                    return (
-                        <Fragment key={groupId}>
-                            {/* ── Background Stack Layers ── */}
-                            {isStacked && backgroundIds.map((bgId, i) => {
-                                const inst = instances[bgId];
-                                const def = registryMap.get(inst.type);
-                                if (!inst || !inst.layout || !def) return null;
+                        const groupLocked = !!lockedGroups[groupId];
+                        const instanceLocked = !!activeInstance.isLocked;
+                        const lockedFinal = groupLocked || instanceLocked;
 
-                                const offsetX = STACK_OFFSET_X * (i + 1);
-                                const offsetY = STACK_OFFSET_Y * (i + 1);
-                                const scale = Math.max(STACK_MIN_SCALE, 1 - (i + 1) * STACK_SCALE_STEP);
-                                const opacity = Math.max(0.35, 0.75 - i * 0.15);
-                                const blur = 1 + i * 0.5;
+                        // Rects for OTHER widgets (exclude all members of this group for alignment)
+                        const groupMemberIds = new Set(instanceIds);
+                        const otherRects = widgetRects.filter(r => !groupMemberIds.has(r.id));
 
-                                const isInteracting = interactingId === activeId;
+                        return (
+                            <motion.div key={groupId} variants={widgetItemVariants}>
+                                {/* ── Background Stack Layers ── */}
+                                {isStacked && backgroundIds.map((bgId, i) => {
+                                    const inst = instances[bgId];
+                                    const def = registryMap.get(inst.type);
+                                    if (!inst || !inst.layout || !def) return null;
 
-                                return (
-                                    <div
-                                        key={`prev-${bgId}`}
-                                        className="absolute pointer-events-none"
-                                        style={{
-                                            left: anchorX + offsetX,
-                                            top: anchorY + offsetY,
-                                            width: activeInstance.layout!.w,
-                                            height: activeInstance.layout!.h,
-                                            transform: `scale(${scale})`,
-                                            opacity: opacity,
-                                            filter: `blur(${blur}px)`,
-                                            zIndex: 10 + i,
-                                            transition: !isInteracting
-                                                ? "left 0.4s cubic-bezier(0.19, 1, 0.22, 1), top 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s cubic-bezier(0.19, 1, 0.22, 1)"
-                                                : "none"
-                                        }}
-                                    >
-                                        <WidgetStackPreview definition={def} title={inst.title || def.defaultTitle} />
-                                    </div>
-                                );
-                            })}
+                                    const offsetX = STACK_OFFSET_X * (i + 1);
+                                    const offsetY = STACK_OFFSET_Y * (i + 1);
+                                    const scale = Math.max(STACK_MIN_SCALE, 1 - (i + 1) * STACK_SCALE_STEP);
+                                    const opacity = Math.max(0.35, 0.75 - i * 0.15);
+                                    const blur = 1 + i * 0.5;
 
-                            {/* ── Active Widget ── */}
-                            <Rnd
-                                bounds={undefined} // Remove parent bounds for infinite canvas
-                                size={{ width: activeInstance.layout.w, height: activeInstance.layout.h }}
-                                position={{
-                                    x: animatedLayoutOverrides[activeId]?.x ?? activeInstance.layout.x, // V4.7: Use activeInstance layout instead of anchor
-                                    y: animatedLayoutOverrides[activeId]?.y ?? activeInstance.layout.y // V4.7: Use activeInstance layout instead of anchor
-                                }}
-                                disableDragging={!dashboardEditMode || lockedFinal}
-                                enableResizing={dashboardEditMode && !lockedFinal ? (
-                                    activeInstance.isCollapsed || activeInstance.type === "section_divider" ? {
-                                        right: true,
-                                        bottom: false,
-                                        bottomRight: false,
-                                        top: false,
-                                        topLeft: false,
-                                        topRight: false,
-                                        left: true, // Allow left resizing for collapsed/dividers horizontally
-                                        bottomLeft: false,
-                                    } : {
-                                        bottom: true,
-                                        bottomRight: true,
-                                        right: true,
-                                        top: true,
-                                        topLeft: true,
-                                        topRight: true,
-                                        left: true,
-                                        bottomLeft: true,
-                                    }
-                                ) : false}
-                                dragHandleClassName="tbb-drag-handle"
-                                minWidth={activeInstance.type === "section_divider" ? 100 : 280}
-                                minHeight={activeInstance.isCollapsed ? (activeInstance.collapsedHeight ?? 64) : (activeInstance.type === "section_divider" ? 40 : 180)}
-                                onDragStart={(e) => {
-                                    setInteractingId(activeId);
-                                    if (scrollRef.current) {
-                                        dragScrollStartRef.current = {
-                                            left: scrollRef.current.scrollLeft,
-                                            top: scrollRef.current.scrollTop
-                                        };
-                                    }
+                                    const isInteracting = interactingId === activeId;
 
-                                    // V4.4: Explicit pointer update from DragStart Event
-                                    if ("clientX" in e && "clientY" in e) {
-                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
-                                    } else if ("touches" in e && (e as TouchEvent).touches.length > 0) {
-                                        pointerRef.current = { x: (e as TouchEvent).touches[0].clientX, y: (e as TouchEvent).touches[0].clientY };
-                                    }
-
-                                    // V4.7: Capture Drag Offset in Surface Coordinates
-                                    const p = getSurfacePointer();
-                                    dragOffsetRef.current = {
-                                        x: p.x - activeInstance.layout!.x,
-                                        y: p.y - activeInstance.layout!.y,
-                                    };
-
-                                    startAutoScroll();
-                                }}
-                                onDrag={(e, d) => {
-                                    // V4.4: Explicit pointer update from Drag Event
-                                    if ("clientX" in e && "clientY" in e) {
-                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
-                                    } else if ("touches" in e && e.touches.length > 0) {
-                                        pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                                    }
-
-                                    // V4.8 Debug: Check horizontal scroll
-                                    if (scrollRef.current) {
-                                        // console.log("Drag ScrollLeft:", scrollRef.current.scrollLeft);
-                                    }
-
-                                    const w = activeInstance.layout!.w;
-                                    const h = activeInstance.layout!.h;
-
-                                    // V4.7: Compute Real Y From Pointer (Ignore d.y)
-                                    // V5.0: Lock X-Axis Drag
-                                    // V4.7: Compute Real X/Y From Pointer (Ignore d.x/d.y)
-                                    // V5.1: Relaxed Lock - Allow X drag but clamp to surface width
-                                    const p = getSurfacePointer();
-
-                                    // 1. Calculate raw position from pointer
-                                    let rawX = p.x - dragOffsetRef.current.x;
-                                    const rawY = p.y - dragOffsetRef.current.y;
-
-                                    // 2. Clamp X to current surface width (prevent expansion)
-                                    // Use surfaceRef.current.clientWidth if available for most up-to-date width
-                                    const maxW = surfaceRef.current?.clientWidth || surfaceSize.w;
-                                    rawX = Math.max(0, Math.min(rawX, maxW - w));
-
-                                    const snappedX = snap(rawX);
-                                    const snappedY = snap(rawY);
-
-                                    const activeRect: WidgetRect = {
-                                        id: activeId,
-                                        left: snappedX,
-                                        top: snappedY,
-                                        right: snappedX + w,
-                                        bottom: snappedY + h,
-                                        centerX: snappedX + w / 2,
-                                        centerY: snappedY + h / 2,
-                                        w,
-                                        h,
-                                    };
-                                    const result = computeDragAlignment(activeRect, otherRects);
-                                    setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
-                                    setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
-
-                                    // ── Live Bounds for Dynamic Expansion ──
-                                    // Use raw/snapped coords instead of d.x/d.y
-                                    // V5.0: Only expand bottom
-                                    // V5.1: X is clamped, so we don't need to track maxRight for expansion
-                                    const bottom = rawY + h;
-
-                                    liveBoundsRef.current = {
-                                        maxRight: 0,
-                                        maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
-                                    };
-
-                                    const PAD_Y = 220;
-                                    const neededH = Math.max(viewport.h, bottom + PAD_Y);
-
-                                    const needsResize = neededH > surfaceSize.h;
-                                    if (needsResize) {
-                                        safeSetSurfaceSize({
-                                            w: 0, // ignored
-                                            h: Math.max(surfaceSize.h, neededH)
-                                        });
-                                    }
-                                }}
-                                onDragStop={(e, d) => {
-                                    setInteractingId(null);
-                                    stopAutoScroll();
-                                    liveBoundsRef.current = { maxRight: 0, maxBottom: 0 }; // Reset
-
-                                    const w = activeInstance.layout!.w;
-                                    const h = activeInstance.layout!.h;
-
-                                    // Step 1: Extract current active layout
-                                    const oldX = activeInstance.layout!.x;
-                                    const oldY = activeInstance.layout!.y;
-
-                                    // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
-                                    // V5.0: Lock X
-                                    // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
-                                    // V5.1: Allow X change, clamp to surface
-                                    const p = getSurfacePointer();
-
-                                    let rawX = p.x - dragOffsetRef.current.x;
-                                    const rawY = p.y - dragOffsetRef.current.y;
-
-                                    // Clamp X
-                                    const maxW = surfaceRef.current?.clientWidth || surfaceSize.w;
-                                    rawX = Math.max(0, Math.min(rawX, maxW - w));
-
-                                    const finalX = Math.max(0, snap(rawX));
-                                    const finalY = Math.max(0, snap(rawY));
-
-                                    // Step 3: Compute translation delta safely
-                                    const dx = finalX - oldX;
-                                    const dy = finalY - oldY;
-
-                                    // Step 4: Apply translation to all widgets in the group WITHOUT snapping
-                                    if (isStacked) {
-                                        instanceIds.forEach((id) => {
-                                            const inst = instances[id];
-                                            if (!inst?.layout) return;
-
-                                            updateInstanceLayout(id, {
-                                                x: Math.max(0, inst.layout.x + dx),
-                                                y: Math.max(0, inst.layout.y + dy),
-                                            });
-                                        });
-                                    }
-
-                                    // Step 5: Force active widget to exact snapped position
-                                    updateInstanceLayout(activeId, {
-                                        x: finalX,
-                                        y: finalY,
-                                    });
-
-                                    // ── Inertia Animation ──
-                                    // 1. Set override to current drag position (unsnapped)
-                                    setAnimatedLayoutOverrides(prev => ({
-                                        ...prev,
-                                        [activeId]: { x: rawX, y: rawY, w: activeInstance.layout!.w, h: activeInstance.layout!.h }
-                                    }));
-
-                                    // 2. Animate to snapped position
-                                    const start = { x: rawX, y: rawY };
-                                    const end = { x: finalX, y: finalY };
-
-                                    let velocity = { x: 0, y: 0 };
-                                    let current = { ...start };
-                                    const stiffness = 0.2; // 0.2
-                                    const damping = 0.8; // 0.8
-                                    const precision = 0.5;
-
-                                    const animate = () => {
-                                        const forceX = (end.x - current.x) * stiffness;
-                                        const forceY = (end.y - current.y) * stiffness;
-
-                                        velocity.x = (velocity.x + forceX) * damping;
-                                        velocity.y = (velocity.y + forceY) * damping;
-
-                                        current.x += velocity.x;
-                                        current.y += velocity.y;
-
-                                        // Check stop condition
-                                        if (
-                                            Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
-                                            Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision
-                                        ) {
-                                            setAnimatedLayoutOverrides(prev => {
-                                                const next = { ...prev };
-                                                delete next[activeId];
-                                                return next;
-                                            });
-                                            return;
-                                        }
-
-                                        setAnimatedLayoutOverrides(prev => ({
-                                            ...prev,
-                                            [activeId]: { ...prev[activeId]!, x: current.x, y: current.y }
-                                        }));
-                                        requestAnimationFrame(animate);
-                                    };
-                                    requestAnimationFrame(animate);
-
-                                    clearGuides();
-
-                                    // V4.6: Force scroll restoration after Rnd cleanup
-                                    requestAnimationFrame(() => {
-                                        if (!scrollRef.current) return;
-                                        // V5.0: Only restore scrollTop, scrollLeft is always 0
-                                        scrollRef.current.scrollTop = dragScrollStartRef.current.top + scrollCompRef.current.dy;
-                                        // Reset compensation
-                                        scrollCompRef.current = { dx: 0, dy: 0 };
-                                    });
-                                }}
-                                onResizeStart={() => {
-                                    setInteractingId(activeId);
-                                    startAutoScroll();
-                                }}
-                                onResize={(e, direction, ref, delta, pos) => {
-                                    // V4.4: Explicit pointer update from Resize Event
-                                    if ("clientX" in e && "clientY" in e) {
-                                        pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
-                                    } else if ("touches" in e && e.touches.length > 0) {
-                                        pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                                    }
-
-                                    const newW = ref.offsetWidth;
-                                    const newH = ref.offsetHeight;
-                                    const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
-                                    setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
-                                    setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
-
-                                    const w = ref.offsetWidth;
-                                    const h = ref.offsetHeight;
-                                    const right = pos.x + w;
-                                    const bottom = pos.y + h;
-
-                                    liveBoundsRef.current = {
-                                        maxRight: Math.max(liveBoundsRef.current.maxRight, right),
-                                        maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
-                                    };
-
-                                    const PAD_X = 140;
-                                    const PAD_Y = 220;
-                                    const neededW = Math.max(viewport.w, right + PAD_X);
-                                    const neededH = Math.max(viewport.h, bottom + PAD_Y);
-
-                                    const needsResize = neededW > surfaceSize.w || neededH > surfaceSize.h;
-                                    if (needsResize) {
-                                        safeSetSurfaceSize({
-                                            w: Math.max(surfaceSize.w, neededW),
-                                            h: Math.max(surfaceSize.h, neededH)
-                                        });
-                                    }
-                                }}
-                                onResizeStop={(e, direction, ref, delta, pos) => {
-                                    setInteractingId(null);
-                                    stopAutoScroll();
-                                    liveBoundsRef.current = { maxRight: 0, maxBottom: 0 };
-
-                                    const newW = ref.offsetWidth;
-                                    const newH = ref.offsetHeight;
-                                    const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
-                                    const finalW = snap(result.snappedW);
-                                    const finalH = snap(result.snappedH);
-                                    const finalX = snap(pos.x);
-                                    const finalY = snap(pos.y);
-
-                                    updateInstanceLayout(activeId, {
-                                        w: finalW,
-                                        h: finalH,
-                                        x: finalX,
-                                        y: finalY,
-                                    });
-
-                                    // ── Inertia Animation (Resize) ──
-                                    setAnimatedLayoutOverrides(prev => ({
-                                        ...prev,
-                                        [activeId]: { x: pos.x, y: pos.y, w: newW, h: newH }
-                                    }));
-
-                                    const start = { x: pos.x, y: pos.y, w: newW, h: newH };
-                                    const end = { x: finalX, y: finalY, w: finalW, h: finalH };
-
-                                    let velocity = { x: 0, y: 0, w: 0, h: 0 };
-                                    let current = { ...start };
-                                    const stiffness = 0.2;
-                                    const damping = 0.8;
-                                    const precision = 0.5;
-
-                                    const animate = () => {
-                                        const forceX = (end.x - current.x) * stiffness;
-                                        const forceY = (end.y - current.y) * stiffness;
-                                        const forceW = (end.w - current.w) * stiffness;
-                                        const forceH = (end.h - current.h) * stiffness;
-
-                                        velocity.x = (velocity.x + forceX) * damping;
-                                        velocity.y = (velocity.y + forceY) * damping;
-                                        velocity.w = (velocity.w + forceW) * damping;
-                                        velocity.h = (velocity.h + forceH) * damping;
-
-                                        current.x += velocity.x;
-                                        current.y += velocity.y;
-                                        current.w += velocity.w;
-                                        current.h += velocity.h;
-
-                                        if (
-                                            Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
-                                            Math.abs(velocity.w) < 0.1 && Math.abs(velocity.h) < 0.1 &&
-                                            Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision &&
-                                            Math.abs(end.w - current.w) < precision && Math.abs(end.h - current.h) < precision
-                                        ) {
-                                            setAnimatedLayoutOverrides(prev => {
-                                                const next = { ...prev };
-                                                delete next[activeId];
-                                                return next;
-                                            });
-                                            return;
-                                        }
-
-                                        setAnimatedLayoutOverrides(prev => ({
-                                            ...prev,
-                                            [activeId]: { x: current.x, y: current.y, w: current.w, h: current.h }
-                                        }));
-                                        requestAnimationFrame(animate);
-                                    };
-                                    requestAnimationFrame(animate);
-
-                                    clearGuides();
-                                }}
-                                style={{
-                                    zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
-                                    transition: (interactingId !== activeId && !animatedLayoutOverrides[activeId])
-                                        ? "transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.3s ease"
-                                        : "box-shadow 0.3s ease",
-                                }}
-                                className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''} touch-none`}
-                            >
-                                <AnimatePresence mode="wait" initial={false} custom={dir}>
-                                    <motion.div
-                                        key={activeId}
-                                        custom={dir}
-                                        variants={slideVariants}
-                                        initial="initial"
-                                        animate="animate"
-                                        exit="exit"
-                                        className="h-full w-full"
-                                    >
-                                        <WidgetCard
-                                            instance={activeInstance}
-                                            definition={definition || {} as any}
-                                            stackCount={instanceIds.length}
-                                            groupId={groupId}
-                                            groupLocked={groupLocked}
-                                            onToggleGroupLock={toggleGroupLock}
-                                            onCycleStack={handleCycleStack}
-                                            onExpandStack={() => setExpandedGroupId(groupId)}
-                                            onUnlinkFromStack={handleUnlinkFromStack}
-                                            onRelinkToStacks={relinkToStacks}
-                                            onGroupCollapse={handleGroupCollapse}
+                                    return (
+                                        <div
+                                            key={`prev-${bgId}`}
+                                            className="absolute pointer-events-none"
+                                            style={{
+                                                left: anchorX + offsetX,
+                                                top: anchorY + offsetY,
+                                                width: activeInstance.layout!.w,
+                                                height: activeInstance.layout!.h,
+                                                transform: `scale(${scale})`,
+                                                opacity: opacity,
+                                                filter: `blur(${blur}px)`,
+                                                zIndex: 10 + i,
+                                                transition: !isInteracting
+                                                    ? "left 0.4s cubic-bezier(0.19, 1, 0.22, 1), top 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s cubic-bezier(0.19, 1, 0.22, 1)"
+                                                    : "none"
+                                            }}
                                         >
-                                            {activeInstance.type === "projects_overview" ? (
-                                                <ProjectsOverviewWidget instance={activeInstance} onNavigate={onNavigate} />
-                                            ) : (
-                                                <Component instance={activeInstance} />
-                                            )}
-                                        </WidgetCard>
-                                    </motion.div>
-                                </AnimatePresence>
-                            </Rnd>
-                        </Fragment>
-                    );
-                })}
+                                            <WidgetStackPreview definition={def} title={inst.title || def.defaultTitle} />
+                                        </div>
+                                    );
+                                })}
 
-                {/* Stack Expansion Modal */}
-                <StackExpandModal
-                    isOpen={!!expandedGroupId}
-                    groupId={expandedGroupId}
-                    instances={expandedGroupId ? (groups.find(g => g.groupId === expandedGroupId)?.instanceIds.map((id: string) => instances[id]).filter(Boolean) as WidgetInstance[]) : []}
-                    activeId={expandedGroupId ? (activeInGroup[expandedGroupId] || groups.find(g => g.groupId === expandedGroupId)?.instanceIds[0] || "") : ""}
-                    onSelect={(instanceId: string) => handleSetActiveInGroup(expandedGroupId!, instanceId)}
-                    onClose={() => setExpandedGroupId(null)}
-                />
-            </div>
+                                {/* ── Active Widget ── */}
+                                <Rnd
+                                    bounds={undefined} // Remove parent bounds for infinite canvas
+                                    size={{ width: activeInstance.layout.w, height: activeInstance.layout.h }}
+                                    position={{
+                                        x: animatedLayoutOverrides[activeId]?.x ?? activeInstance.layout.x, // V4.7: Use activeInstance layout instead of anchor
+                                        y: animatedLayoutOverrides[activeId]?.y ?? activeInstance.layout.y // V4.7: Use activeInstance layout instead of anchor
+                                    }}
+                                    disableDragging={!dashboardEditMode || lockedFinal}
+                                    enableResizing={dashboardEditMode && !lockedFinal ? (
+                                        activeInstance.isCollapsed || activeInstance.type === "section_divider" ? {
+                                            right: true,
+                                            bottom: false,
+                                            bottomRight: false,
+                                            top: false,
+                                            topLeft: false,
+                                            topRight: false,
+                                            left: true, // Allow left resizing for collapsed/dividers horizontally
+                                            bottomLeft: false,
+                                        } : {
+                                            bottom: true,
+                                            bottomRight: true,
+                                            right: true,
+                                            top: true,
+                                            topLeft: true,
+                                            topRight: true,
+                                            left: true,
+                                            bottomLeft: true,
+                                        }
+                                    ) : false}
+                                    dragHandleClassName="tbb-drag-handle"
+                                    minWidth={activeInstance.type === "section_divider" ? 100 : 280}
+                                    minHeight={activeInstance.isCollapsed ? (activeInstance.collapsedHeight ?? 64) : (activeInstance.type === "section_divider" ? 40 : 180)}
+                                    onDragStart={(e) => {
+                                        setInteractingId(activeId);
+                                        if (scrollRef.current) {
+                                            dragScrollStartRef.current = {
+                                                left: scrollRef.current.scrollLeft,
+                                                top: scrollRef.current.scrollTop
+                                            };
+                                        }
+
+                                        // V4.4: Explicit pointer update from DragStart Event
+                                        if ("clientX" in e && "clientY" in e) {
+                                            pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                        } else if ("touches" in e && (e as TouchEvent).touches.length > 0) {
+                                            pointerRef.current = { x: (e as TouchEvent).touches[0].clientX, y: (e as TouchEvent).touches[0].clientY };
+                                        }
+
+                                        // V4.7: Capture Drag Offset in Surface Coordinates
+                                        const p = getSurfacePointer();
+                                        dragOffsetRef.current = {
+                                            x: p.x - activeInstance.layout!.x,
+                                            y: p.y - activeInstance.layout!.y,
+                                        };
+
+                                        startAutoScroll();
+                                    }}
+                                    onDrag={(e, d) => {
+                                        // V4.4: Explicit pointer update from Drag Event
+                                        if ("clientX" in e && "clientY" in e) {
+                                            pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                        } else if ("touches" in e && e.touches.length > 0) {
+                                            pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                                        }
+
+                                        // V4.8 Debug: Check horizontal scroll
+                                        if (scrollRef.current) {
+                                            // console.log("Drag ScrollLeft:", scrollRef.current.scrollLeft);
+                                        }
+
+                                        const w = activeInstance.layout!.w;
+                                        const h = activeInstance.layout!.h;
+
+                                        // V4.7: Compute Real Y From Pointer (Ignore d.y)
+                                        // V5.0: Lock X-Axis Drag
+                                        // V4.7: Compute Real X/Y From Pointer (Ignore d.x/d.y)
+                                        // V5.1: Relaxed Lock - Allow X drag but clamp to surface width
+                                        const p = getSurfacePointer();
+
+                                        // 1. Calculate raw position from pointer
+                                        let rawX = p.x - dragOffsetRef.current.x;
+                                        const rawY = p.y - dragOffsetRef.current.y;
+
+                                        // 2. Clamp X to current surface width (prevent expansion)
+                                        const maxW = scrollRef.current?.clientWidth || surfaceSize.w;
+                                        rawX = Math.max(0, Math.min(rawX, maxW - w));
+
+                                        const snappedX = snap(rawX);
+                                        const snappedY = snap(rawY);
+
+                                        const activeRect: WidgetRect = {
+                                            id: activeId,
+                                            left: snappedX,
+                                            top: snappedY,
+                                            right: snappedX + w,
+                                            bottom: snappedY + h,
+                                            centerX: snappedX + w / 2,
+                                            centerY: snappedY + h / 2,
+                                            w,
+                                            h,
+                                        };
+                                        const result = computeDragAlignment(activeRect, otherRects);
+                                        setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
+                                        setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
+
+                                        // ── Live Bounds for Dynamic Expansion ──
+                                        // Use raw/snapped coords instead of d.x/d.y
+                                        // V5.0: Only expand bottom
+                                        // V5.1: X is clamped, so we don't need to track maxRight for expansion
+                                        const bottom = rawY + h;
+
+                                        liveBoundsRef.current = {
+                                            maxRight: 0,
+                                            maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
+                                        };
+
+                                        const PAD_Y = 220;
+                                        const neededH = Math.max(viewport.h, bottom + PAD_Y);
+
+                                        const needsResize = neededH > surfaceSize.h;
+                                        if (needsResize) {
+                                            safeSetSurfaceSize({
+                                                w: 0, // ignored
+                                                h: Math.max(surfaceSize.h, neededH)
+                                            });
+                                        }
+                                    }}
+                                    onDragStop={(e, d) => {
+                                        setInteractingId(null);
+                                        stopAutoScroll();
+                                        liveBoundsRef.current = { maxRight: 0, maxBottom: 0 }; // Reset
+
+                                        const w = activeInstance.layout!.w;
+                                        const h = activeInstance.layout!.h;
+
+                                        // Step 1: Extract current active layout
+                                        const oldX = activeInstance.layout!.x;
+                                        const oldY = activeInstance.layout!.y;
+
+                                        // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
+                                        // V5.0: Lock X
+                                        // V4.7: Recompute Valid Drop Position (Ignore d.x/d.y)
+                                        // V5.1: Allow X change, clamp to surface
+                                        const p = getSurfacePointer();
+
+                                        let rawX = p.x - dragOffsetRef.current.x;
+                                        const rawY = p.y - dragOffsetRef.current.y;
+
+                                        // Clamp X
+                                        const maxW = scrollRef.current?.clientWidth || surfaceSize.w;
+                                        rawX = Math.max(0, Math.min(rawX, maxW - w));
+
+                                        const finalX = Math.max(0, snap(rawX));
+                                        const finalY = Math.max(0, snap(rawY));
+
+                                        // Step 3: Compute translation delta safely
+                                        const dx = finalX - oldX;
+                                        const dy = finalY - oldY;
+
+                                        // Step 4: Apply translation to all widgets in the group WITHOUT snapping
+                                        if (isStacked) {
+                                            instanceIds.forEach((id) => {
+                                                const inst = instances[id];
+                                                if (!inst?.layout) return;
+
+                                                updateInstanceLayout(id, {
+                                                    x: Math.max(0, inst.layout.x + dx),
+                                                    y: Math.max(0, inst.layout.y + dy),
+                                                });
+                                            });
+                                        }
+
+                                        // Step 5: Force active widget to exact snapped position
+                                        updateInstanceLayout(activeId, {
+                                            x: finalX,
+                                            y: finalY,
+                                        });
+
+                                        // ── Inertia Animation ──
+                                        // 1. Set override to current drag position (unsnapped)
+                                        setAnimatedLayoutOverrides(prev => ({
+                                            ...prev,
+                                            [activeId]: { x: rawX, y: rawY, w: activeInstance.layout!.w, h: activeInstance.layout!.h }
+                                        }));
+
+                                        // 2. Animate to snapped position
+                                        const start = { x: rawX, y: rawY };
+                                        const end = { x: finalX, y: finalY };
+
+                                        let velocity = { x: 0, y: 0 };
+                                        let current = { ...start };
+                                        const stiffness = 0.2; // 0.2
+                                        const damping = 0.8; // 0.8
+                                        const precision = 0.5;
+
+                                        const animate = () => {
+                                            const forceX = (end.x - current.x) * stiffness;
+                                            const forceY = (end.y - current.y) * stiffness;
+
+                                            velocity.x = (velocity.x + forceX) * damping;
+                                            velocity.y = (velocity.y + forceY) * damping;
+
+                                            current.x += velocity.x;
+                                            current.y += velocity.y;
+
+                                            // Check stop condition
+                                            if (
+                                                Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
+                                                Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision
+                                            ) {
+                                                setAnimatedLayoutOverrides(prev => {
+                                                    const next = { ...prev };
+                                                    delete next[activeId];
+                                                    return next;
+                                                });
+                                                return;
+                                            }
+
+                                            setAnimatedLayoutOverrides(prev => ({
+                                                ...prev,
+                                                [activeId]: { ...prev[activeId]!, x: current.x, y: current.y }
+                                            }));
+                                            requestAnimationFrame(animate);
+                                        };
+                                        requestAnimationFrame(animate);
+
+                                        clearGuides();
+
+                                        // V4.6: Force scroll restoration after Rnd cleanup
+                                        requestAnimationFrame(() => {
+                                            if (!scrollRef.current) return;
+                                            // V5.0: Only restore scrollTop, scrollLeft is always 0
+                                            scrollRef.current.scrollTop = dragScrollStartRef.current.top + scrollCompRef.current.dy;
+                                            // Reset compensation
+                                            scrollCompRef.current = { dx: 0, dy: 0 };
+                                        });
+                                    }}
+                                    onResizeStart={() => {
+                                        setInteractingId(activeId);
+                                        startAutoScroll();
+                                    }}
+                                    onResize={(e, direction, ref, delta, pos) => {
+                                        // V4.4: Explicit pointer update from Resize Event
+                                        if ("clientX" in e && "clientY" in e) {
+                                            pointerRef.current = { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+                                        } else if ("touches" in e && e.touches.length > 0) {
+                                            pointerRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                                        }
+
+                                        const newW = ref.offsetWidth;
+                                        const newH = ref.offsetHeight;
+                                        const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
+                                        setGuides({ vertical: result.verticalGuides, horizontal: result.horizontalGuides });
+                                        setGuidesVisible(result.verticalGuides.length > 0 || result.horizontalGuides.length > 0);
+
+                                        const w = ref.offsetWidth;
+                                        const h = ref.offsetHeight;
+                                        const right = pos.x + w;
+                                        const bottom = pos.y + h;
+
+                                        liveBoundsRef.current = {
+                                            maxRight: Math.max(liveBoundsRef.current.maxRight, right),
+                                            maxBottom: Math.max(liveBoundsRef.current.maxBottom, bottom)
+                                        };
+
+                                        const PAD_X = 140;
+                                        const PAD_Y = 220;
+                                        const neededW = Math.max(viewport.w, right + PAD_X);
+                                        const neededH = Math.max(viewport.h, bottom + PAD_Y);
+
+                                        const needsResize = neededW > surfaceSize.w || neededH > surfaceSize.h;
+                                        if (needsResize) {
+                                            safeSetSurfaceSize({
+                                                w: Math.max(surfaceSize.w, neededW),
+                                                h: Math.max(surfaceSize.h, neededH)
+                                            });
+                                        }
+                                    }}
+                                    onResizeStop={(e, direction, ref, delta, pos) => {
+                                        setInteractingId(null);
+                                        stopAutoScroll();
+                                        liveBoundsRef.current = { maxRight: 0, maxBottom: 0 };
+
+                                        const newW = ref.offsetWidth;
+                                        const newH = ref.offsetHeight;
+                                        const result = computeResizeAlignment(activeId, pos.x, pos.y, newW, newH, otherRects);
+                                        const finalW = snap(result.snappedW);
+                                        const finalH = snap(result.snappedH);
+                                        const finalX = snap(pos.x);
+                                        const finalY = snap(pos.y);
+
+                                        updateInstanceLayout(activeId, {
+                                            w: finalW,
+                                            h: finalH,
+                                            x: finalX,
+                                            y: finalY,
+                                        });
+
+                                        // ── Inertia Animation (Resize) ──
+                                        setAnimatedLayoutOverrides(prev => ({
+                                            ...prev,
+                                            [activeId]: { x: pos.x, y: pos.y, w: newW, h: newH }
+                                        }));
+
+                                        const start = { x: pos.x, y: pos.y, w: newW, h: newH };
+                                        const end = { x: finalX, y: finalY, w: finalW, h: finalH };
+
+                                        let velocity = { x: 0, y: 0, w: 0, h: 0 };
+                                        let current = { ...start };
+                                        const stiffness = 0.2;
+                                        const damping = 0.8;
+                                        const precision = 0.5;
+
+                                        const animate = () => {
+                                            const forceX = (end.x - current.x) * stiffness;
+                                            const forceY = (end.y - current.y) * stiffness;
+                                            const forceW = (end.w - current.w) * stiffness;
+                                            const forceH = (end.h - current.h) * stiffness;
+
+                                            velocity.x = (velocity.x + forceX) * damping;
+                                            velocity.y = (velocity.y + forceY) * damping;
+                                            velocity.w = (velocity.w + forceW) * damping;
+                                            velocity.h = (velocity.h + forceH) * damping;
+
+                                            current.x += velocity.x;
+                                            current.y += velocity.y;
+                                            current.w += velocity.w;
+                                            current.h += velocity.h;
+
+                                            if (
+                                                Math.abs(velocity.x) < 0.1 && Math.abs(velocity.y) < 0.1 &&
+                                                Math.abs(velocity.w) < 0.1 && Math.abs(velocity.h) < 0.1 &&
+                                                Math.abs(end.x - current.x) < precision && Math.abs(end.y - current.y) < precision &&
+                                                Math.abs(end.w - current.w) < precision && Math.abs(end.h - current.h) < precision
+                                            ) {
+                                                setAnimatedLayoutOverrides(prev => {
+                                                    const next = { ...prev };
+                                                    delete next[activeId];
+                                                    return next;
+                                                });
+                                                return;
+                                            }
+
+                                            setAnimatedLayoutOverrides(prev => ({
+                                                ...prev,
+                                                [activeId]: { x: current.x, y: current.y, w: current.w, h: current.h }
+                                            }));
+                                            requestAnimationFrame(animate);
+                                        };
+                                        requestAnimationFrame(animate);
+
+                                        clearGuides();
+                                    }}
+                                    style={{
+                                        zIndex: dashboardEditMode ? (activeInstance.zIndex ?? 1) + 1000 : (activeInstance.zIndex ?? 1),
+                                        transition: (interactingId !== activeId && !animatedLayoutOverrides[activeId])
+                                            ? "transform 0.4s cubic-bezier(0.19, 1, 0.22, 1), width 0.4s cubic-bezier(0.19, 1, 0.22, 1), height 0.4s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.3s ease"
+                                            : "box-shadow 0.3s ease",
+                                    }}
+                                    className={`transition-shadow duration-300 ${isStacked ? 'shadow-2xl' : ''} touch-none`}
+                                >
+                                    <AnimatePresence mode="wait" initial={false} custom={dir}>
+                                        <motion.div
+                                            key={activeId}
+                                            custom={dir}
+                                            variants={slideVariants}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            className="h-full w-full"
+                                        >
+                                            <WidgetCard
+                                                instance={activeInstance}
+                                                definition={definition || {} as any}
+                                                stackCount={instanceIds.length}
+                                                groupId={groupId}
+                                                groupLocked={groupLocked}
+                                                onToggleGroupLock={toggleGroupLock}
+                                                onCycleStack={handleCycleStack}
+                                                onExpandStack={() => setExpandedGroupId(groupId)}
+                                                onUnlinkFromStack={handleUnlinkFromStack}
+                                                onRelinkToStacks={relinkToStacks}
+                                                onGroupCollapse={handleGroupCollapse}
+                                                health={!definition && activeInstance.type !== "projects_overview" ? (healthHistory[activeId]?.[healthHistory[activeId].length - 1]?.status ?? 'loading') : undefined}
+                                                healthMessage={healthHistory[activeId]?.[healthHistory[activeId].length - 1]?.message}
+                                                lastUpdated={healthHistory[activeId]?.[healthHistory[activeId].length - 1]?.timestamp || activeInstance.updatedAt}
+                                            >
+                                                {activeInstance.type === "projects_overview" ? (
+                                                    <ProjectsOverviewWidget instance={activeInstance} onNavigate={onNavigate} />
+                                                ) : definition ? (
+                                                    // Legacy widget from registryMap (Gmail, Quote Clock, Kanban, etc.)
+                                                    <Component instance={activeInstance} />
+                                                ) : (
+                                                    // New template widget from widgetTemplateRegistry
+                                                    <WidgetRuntime
+                                                        widgetId={activeInstance.instanceId}
+                                                        widgetType={activeInstance.type}
+                                                        version={activeInstance.version}
+                                                        config={activeInstance.config}
+                                                        onHealthReport={(status, lastUpdated, message) => {
+                                                            handleWidgetHealth(activeId, status, lastUpdated, message);
+                                                        }}
+                                                    />
+                                                )}
+                                            </WidgetCard>
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </Rnd>
+                            </motion.div>
+                        );
+                    })}
+
+                    {/* Stack Expansion Modal */}
+                    <StackExpandModal
+                        isOpen={!!expandedGroupId}
+                        groupId={expandedGroupId}
+                        instances={expandedGroupId ? (groups.find(g => g.groupId === expandedGroupId)?.instanceIds.map((id: string) => instances[id]).filter(Boolean) as WidgetInstance[]) : []}
+                        activeId={expandedGroupId ? (activeInGroup[expandedGroupId] || groups.find(g => g.groupId === expandedGroupId)?.instanceIds[0] || "") : ""}
+                        onSelect={(instanceId: string) => handleSetActiveInGroup(expandedGroupId!, instanceId)}
+                        onClose={() => setExpandedGroupId(null)}
+                    />
+                </motion.div>
+            </AnimatePresence>
         </div>
     );
 }

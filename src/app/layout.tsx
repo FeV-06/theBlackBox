@@ -4,6 +4,7 @@ import "./globals.css";
 import CommandPalette from "@/components/CommandPalette";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import AuthProvider from "@/components/AuthProvider";
+import { WidgetBootstrap } from "@/components/WidgetBootstrap";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -47,6 +48,7 @@ export default function RootLayout({
     return (
         <html lang="en" className={inter.variable}>
             <body className="bg-background text-foreground antialiased" suppressHydrationWarning>
+                <WidgetBootstrap />
                 <AuthProvider />
                 <ThemeProvider />
                 <CommandPalette />

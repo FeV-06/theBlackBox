@@ -33,9 +33,9 @@ export const COMMAND_PALETTE_THEMES: Record<CommandPaletteTheme, {
 
     ai: {
         container:
-            "bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/20",
+            "bg-gradient-to-br from-emerald-950/40 to-cyan-950/40 border border-emerald-500/20",
         input: "text-white",
-        item: "hover:bg-purple-500/10",
+        item: "hover:bg-emerald-500/10",
         showIcons: true,
         density: "comfortable",
     },
